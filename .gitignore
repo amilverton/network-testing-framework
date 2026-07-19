@@ -35,3 +35,6 @@ TestProject~/UserSettings/
 .DS_Store
 Thumbs.db
 Desktop.ini
+
+# Agent and tool scratch
+tmp/
