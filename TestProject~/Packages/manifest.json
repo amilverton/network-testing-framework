@@ -1,0 +1,20 @@
+{
+  "dependencies": {
+    "com.amilverton.purrnet-network-tests": "file:../..",
+    "com.unity.modules.animation": "1.0.0",
+    "com.unity.modules.audio": "1.0.0",
+    "com.unity.modules.director": "1.0.0",
+    "com.unity.modules.imageconversion": "1.0.0",
+    "com.unity.modules.imgui": "1.0.0",
+    "com.unity.modules.jsonserialize": "1.0.0",
+    "com.unity.modules.physics": "1.0.0",
+    "com.unity.modules.physics2d": "1.0.0",
+    "com.unity.modules.unitywebrequest": "1.0.0",
+    "com.unity.test-framework": "1.6.0",
+    "com.unity.ugui": "2.0.0",
+    "dev.purrnet.purrnet": "https://github.com/PurrNet/PurrNet.git?path=/Assets/PurrNet#v1.19.1"
+  },
+  "testables": [
+    "com.amilverton.purrnet-network-tests"
+  ]
+}

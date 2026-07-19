@@ -1,0 +1,24 @@
+{
+  "name": "com.amilverton.purrnet-network-tests",
+  "version": "0.1.0",
+  "displayName": "PurrNet Network Test Harness",
+  "description": "Build and run isolated, multi-process PurrNet integration scenarios with compact machine-readable results.",
+  "unity": "6000.0",
+  "author": {
+    "name": "Ariel Milverton",
+    "url": "https://github.com/amilverton"
+  },
+  "license": "MIT",
+  "documentationUrl": "https://github.com/amilverton/network-testing-framework#readme",
+  "changelogUrl": "https://github.com/amilverton/network-testing-framework/blob/main/CHANGELOG.md",
+  "dependencies": {
+    "dev.purrnet.purrnet": "1.19.1",
+    "com.unity.nuget.newtonsoft-json": "3.2.1"
+  },
+  "keywords": [
+    "purrnet",
+    "networking",
+    "integration-testing",
+    "multiplayer"
+  ]
+}

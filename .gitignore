@@ -1,0 +1,37 @@
+# Unity generated content
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Ll]ogs/
+[Uu]ser[Ss]ettings/
+[Mm]emoryCaptures/
+[Rr]ecordings/
+
+# Builds and network-test artifacts
+[Bb]uild/
+[Bb]uilds/
+Artifacts/
+Artifacts.meta
+TestProject~/Artifacts/
+TestProject~/UserSettings/
+
+# Generated IDE files
+*.csproj
+*.sln
+*.suo
+*.user
+*.userprefs
+*.pidb
+*.booproj
+*.svd
+*.pdb
+*.mdb
+*.opendb
+*.VC.db
+.vs/
+.idea/
+
+# Operating-system files
+.DS_Store
+Thumbs.db
+Desktop.ini

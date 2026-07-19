@@ -1,0 +1,41 @@
+using System.Collections.Generic;
+using Newtonsoft.Json;
+
+namespace Amilverton.PurrNetTesting
+{
+    /// <summary>
+    /// Contains the compact final result published by one Player process.
+    /// </summary>
+    public sealed class NetworkTestReport
+    {
+        [JsonProperty("schemaVersion")]
+        public int SchemaVersion { get; set; }
+
+        [JsonProperty("runId")]
+        public string RunId { get; set; }
+
+        [JsonProperty("scenarioId")]
+        public string ScenarioId { get; set; }
+
+        [JsonProperty("role")]
+        public string Role { get; set; }
+
+        [JsonProperty("status")]
+        public string Status { get; set; }
+
+        [JsonProperty("milestones")]
+        public List<string> Milestones { get; set; }
+
+        [JsonProperty("stateRevision")]
+        public int StateRevision { get; set; }
+
+        [JsonProperty("facts")]
+        public Dictionary<string, object> Facts { get; set; }
+
+        [JsonProperty("failure")]
+        public string Failure { get; set; }
+
+        [JsonProperty("logPath")]
+        public string LogPath { get; set; }
+    }
+}
