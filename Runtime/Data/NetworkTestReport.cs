@@ -29,8 +29,14 @@ namespace Amilverton.PurrNetTesting
         [JsonProperty("stateRevision")]
         public int StateRevision { get; set; }
 
-        [JsonProperty("facts")]
-        public Dictionary<string, object> Facts { get; set; }
+        [JsonProperty("sharedFacts")]
+        public Dictionary<string, object> SharedFacts { get; set; }
+
+        [JsonProperty("roleEvidence")]
+        public Dictionary<string, object> RoleEvidence { get; set; }
+
+        [JsonProperty("assertions")]
+        public List<string> Assertions { get; set; }
 
         [JsonProperty("failure")]
         public string Failure { get; set; }

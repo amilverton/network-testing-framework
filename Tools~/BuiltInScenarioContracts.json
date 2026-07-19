@@ -1,0 +1,208 @@
+{
+  "Harness.RpcRouting": {
+    "stateRevision": 1,
+    "sharedFacts": {
+      "owner.targetReceipts": 1,
+      "observer.targetReceipts": 0,
+      "owner.observersReceipts": 1,
+      "observer.observersReceipts": 1,
+      "server.localRpcHandlersRan": false
+    },
+    "roles": {
+      "Server": {
+        "evidence": { "serverLocalTargetReceipts": 0, "serverLocalObserverReceipts": 0 },
+        "readyMilestones": ["server-listening", "fixture-created", "routing-fixture-created", "fixture-spawned"],
+        "assertions": ["server-confirmed-exact-rpc-audiences"],
+        "milestones": ["server-listening", "fixture-created", "routing-fixture-created", "fixture-spawned", "routing-rpcs-dispatched", "exact-routing-vectors-confirmed"]
+      },
+      "OwnerClient": {
+        "evidence": { "targetReceipts": 1, "observerReceipts": 1 },
+        "readyMilestones": ["client-connected", "role-assigned", "fixture-spawned"],
+        "assertions": ["client-confirmed-exact-rpc-audience"],
+        "milestones": ["client-connected", "role-assigned", "fixture-spawned", "target-rpc-received", "observers-rpc-received", "routing-completion-observed"]
+      },
+      "ObserverClient": {
+        "evidence": { "targetReceipts": 0, "observerReceipts": 1 },
+        "readyMilestones": ["client-connected", "role-assigned", "fixture-spawned"],
+        "assertions": ["client-confirmed-exact-rpc-audience"],
+        "milestones": ["client-connected", "role-assigned", "fixture-spawned", "observers-rpc-received", "routing-completion-observed"]
+      }
+    }
+  },
+  "Harness.CrossPlayerDamage": {
+    "stateRevision": 1,
+    "sharedFacts": {
+      "owner.health": 75,
+      "damage.amount": 25,
+      "damage.acceptedMutations": 1,
+      "damage.rejectedReplays": 1,
+      "damage.attackerRole": "ObserverClient"
+    },
+    "roles": {
+      "Server": {
+        "evidence": { "acceptedMutationCount": 1, "rejectedMutationCount": 1 },
+        "readyMilestones": ["server-listening", "fixture-created", "initial-health-created", "fixture-spawned"],
+        "assertions": ["server-derived-observer-attacker-from-rpc-sender", "server-committed-damage-exactly-once", "server-rejected-replayed-nonce-without-mutation"],
+        "milestones": ["server-listening", "fixture-created", "initial-health-created", "fixture-spawned", "damage-participants-confirmed", "damage-committed-by-server", "all-clients-observed-health", "replayed-damage-rejected", "replay-barrier-confirmed"]
+      },
+      "OwnerClient": {
+        "evidence": { "healthChangeCallbacks": 1, "locallyObservedOwnerHealth": 75 },
+        "readyMilestones": ["client-connected", "initial-health-observed", "fixture-spawned"],
+        "assertions": ["client-read-replicated-health-transition-once", "client-retained-health-after-replay-rejection"],
+        "milestones": ["client-connected", "initial-health-observed", "fixture-spawned", "replicated-health-observed", "damage-completion-observed"]
+      },
+      "ObserverClient": {
+        "evidence": { "healthChangeCallbacks": 1, "locallyObservedOwnerHealth": 75 },
+        "readyMilestones": ["client-connected", "initial-health-observed", "fixture-spawned"],
+        "assertions": ["client-read-replicated-health-transition-once", "client-retained-health-after-replay-rejection"],
+        "milestones": ["client-connected", "initial-health-observed", "fixture-spawned", "valid-damage-intent-sent", "replicated-health-observed", "replay-attempt-sent", "damage-completion-observed"]
+      }
+    }
+  },
+  "Harness.LateJoinState": {
+    "stateRevision": 2,
+    "sharedFacts": {
+      "lateJoin.firstSnapshotRevision": 1,
+      "lateJoin.firstSnapshotValue": 20,
+      "lateJoin.finalRevision": 2,
+      "lateJoin.finalValue": 30
+    },
+    "roles": {
+      "Server": {
+        "evidence": { "authoritativeRevisionCommits": 2 },
+        "readyMilestones": ["server-listening", "fixture-created", "revision-zero-created", "fixture-spawned"],
+        "assertions": ["server-committed-revision-one-before-observer-registration", "server-confirmed-late-snapshot-before-revision-two"],
+        "milestones": ["server-listening", "fixture-created", "revision-zero-created", "fixture-spawned", "revision-one-committed-before-late-join", "owner-prejoin-checkpoint-confirmed", "late-snapshot-confirmed-by-server", "revision-two-committed-after-late-join", "all-clients-observed-postjoin-delta"]
+      },
+      "OwnerClient": {
+        "evidence": { "firstSemanticRevision": 0, "postConfirmationDeltaCallbacks": 1 },
+        "readyMilestones": ["client-connected", "owner-observed-revision-zero", "owner-observed-prejoin-revision", "fixture-spawned"],
+        "assertions": ["client-read-postjoin-delta-exactly-once", "owner-observed-prejoin-and-postjoin-revisions"],
+        "milestones": ["client-connected", "owner-observed-revision-zero", "owner-observed-prejoin-revision", "fixture-spawned", "post-join-delta-observed", "late-join-completion-observed"]
+      },
+      "ObserverClient": {
+        "evidence": { "firstSemanticRevision": 1, "postConfirmationDeltaCallbacks": 1 },
+        "readyMilestones": ["client-connected", "late-observer-read-revision-one-snapshot", "fixture-spawned"],
+        "assertions": ["client-read-postjoin-delta-exactly-once", "late-observer-first-semantic-read-was-revision-one"],
+        "milestones": ["client-connected", "late-observer-read-revision-one-snapshot", "fixture-spawned", "post-join-delta-observed", "late-join-completion-observed"]
+      }
+    }
+  },
+  "Harness.OwnerNetworkTransform": {
+    "stateRevision": 1,
+    "sharedFacts": {
+      "transform.positionMilli": "8000,0,3000",
+      "transform.ownerRole": "OwnerClient",
+      "transform.observerSpoofAuthoritative": false,
+      "transform.toleranceMilli": 50
+    },
+    "roles": {
+      "Server": {
+        "evidence": { "authoritativePositionMilli": "8000,0,3000" },
+        "readyMilestones": ["server-listening", "fixture-created", "network-transform-fixture-created", "fixture-spawned"],
+        "assertions": ["server-converged-to-owner-network-transform", "observer-local-spoof-never-became-authoritative"],
+        "milestones": ["server-listening", "fixture-created", "network-transform-fixture-created", "fixture-spawned", "network-transform-ownership-granted", "transform-clients-ready", "server-observed-owner-transform", "all-roles-converged-before-spoof", "observer-spoof-isolated-from-server", "transform-spoof-test-complete"]
+      },
+      "OwnerClient": {
+        "evidence": { "locallyObservedPositionMilli": "8000,0,3000", "isTransformOwner": true },
+        "readyMilestones": ["client-connected", "owner-transform-authority-observed", "fixture-spawned"],
+        "assertions": ["client-converged-to-owner-authored-position"],
+        "milestones": ["client-connected", "owner-transform-authority-observed", "fixture-spawned", "owner-moved-network-transform", "client-transform-converged", "transform-completion-observed"]
+      },
+      "ObserverClient": {
+        "evidence": { "locallyObservedPositionMilli": "8000,0,3000", "isTransformOwner": false },
+        "readyMilestones": ["client-connected", "observer-initial-transform-observed", "fixture-spawned"],
+        "assertions": ["client-converged-to-owner-authored-position", "observer-resynchronized-after-local-spoof"],
+        "milestones": ["client-connected", "observer-initial-transform-observed", "fixture-spawned", "client-transform-converged", "observer-local-spoof-applied", "observer-resynchronized-after-local-spoof", "transform-completion-observed"]
+      }
+    }
+  },
+  "Harness.OwnershipTransfer": {
+    "stateRevision": 2,
+    "sharedFacts": {
+      "ownership.acceptedMutations": 2,
+      "ownership.finalOwnerRole": "ObserverClient",
+      "ownership.finalValue": 20,
+      "ownership.formerOwnerExecuted": false
+    },
+    "roles": {
+      "Server": {
+        "evidence": { "acceptedOwnedMutations": 2, "unauthorizedOwnedExecutions": 0 },
+        "readyMilestones": ["server-listening", "fixture-created", "ownership-state-created", "fixture-spawned"],
+        "assertions": ["server-accepted-exactly-one-mutation-per-owner-epoch", "server-did-not-execute-former-owner-protected-rpc"],
+        "milestones": ["server-listening", "fixture-created", "ownership-state-created", "fixture-spawned", "epoch-one-owner-granted", "epoch-1-owned-mutation-accepted", "ownership-transferred-to-observer", "epoch-2-owned-mutation-accepted", "former-owner-rejection-barrier-confirmed"]
+      },
+      "OwnerClient": {
+        "evidence": { "stateChangeCallbacks": 2, "isFinalOwner": false },
+        "readyMilestones": ["client-connected", "epoch-one-owner-authority-observed", "fixture-spawned"],
+        "assertions": ["client-observed-two-ordered-authority-epochs", "client-observed-final-observer-ownership"],
+        "milestones": ["client-connected", "epoch-one-owner-authority-observed", "fixture-spawned", "epoch-1-owned-request-sent", "ownership-revision-1-observed", "ownership-revision-2-observed", "former-owner-protected-request-attempted", "ownership-transfer-completion-observed"]
+      },
+      "ObserverClient": {
+        "evidence": { "stateChangeCallbacks": 2, "isFinalOwner": true },
+        "readyMilestones": ["client-connected", "observer-initial-ownership-state-observed", "fixture-spawned"],
+        "assertions": ["client-observed-two-ordered-authority-epochs", "client-observed-final-observer-ownership"],
+        "milestones": ["client-connected", "observer-initial-ownership-state-observed", "fixture-spawned", "ownership-revision-1-observed", "epoch-2-owned-request-sent", "ownership-revision-2-observed", "ownership-transfer-completion-observed"]
+      }
+    }
+  },
+  "Harness.SyncListOrder": {
+    "stateRevision": 4,
+    "sharedFacts": {
+      "syncList.callbackCount": 4,
+      "syncList.callbackTrace": "add:A:0>add:B:1>set:A:C:0>remove:B:1",
+      "syncList.finalCount": 1,
+      "syncList.finalValue0": "C"
+    },
+    "roles": {
+      "Server": {
+        "evidence": { "callbackTrace": "add:A:0>add:B:1>set:A:C:0>remove:B:1", "callbackCount": 4 },
+        "readyMilestones": ["server-listening", "fixture-created", "empty-synclist-created", "fixture-spawned"],
+        "assertions": ["server-observed-exact-four-callback-trace", "server-confirmed-both-client-callback-traces"],
+        "milestones": ["server-listening", "fixture-created", "empty-synclist-created", "fixture-spawned", "synclist-subscribers-ready", "exact-synclist-trace-observed", "all-roles-confirmed-synclist-order"]
+      },
+      "OwnerClient": {
+        "evidence": { "callbackTrace": "add:A:0>add:B:1>set:A:C:0>remove:B:1", "callbackCount": 4 },
+        "readyMilestones": ["client-connected", "empty-synclist-observed", "fixture-spawned"],
+        "assertions": ["client-observed-exact-four-callback-trace", "client-retained-final-synclist-value"],
+        "milestones": ["client-connected", "empty-synclist-observed", "fixture-spawned", "exact-synclist-trace-observed", "synclist-completion-observed"]
+      },
+      "ObserverClient": {
+        "evidence": { "callbackTrace": "add:A:0>add:B:1>set:A:C:0>remove:B:1", "callbackCount": 4 },
+        "readyMilestones": ["client-connected", "empty-synclist-observed", "fixture-spawned"],
+        "assertions": ["client-observed-exact-four-callback-trace", "client-retained-final-synclist-value"],
+        "milestones": ["client-connected", "empty-synclist-observed", "fixture-spawned", "exact-synclist-trace-observed", "synclist-completion-observed"]
+      }
+    }
+  },
+  "Harness.InventoryTransfer": {
+    "stateRevision": 1,
+    "sharedFacts": {
+      "containerSlot0.itemId": "wood",
+      "containerSlot0.amount": 3,
+      "playerSlot0.itemId": "",
+      "playerSlot0.amount": 0,
+      "rejectedRequestDidNotChangeRevision": true
+    },
+    "roles": {
+      "Server": {
+        "evidence": { "acceptedMutationCount": 1, "rejectedMutationCount": 1 },
+        "readyMilestones": ["server-listening", "fixture-created", "initial-state-created", "fixture-spawned"],
+        "assertions": ["server-accepted-owner-transfer-once", "server-rejected-observer-transfer-without-mutation"],
+        "milestones": ["server-listening", "fixture-created", "initial-state-created", "fixture-spawned", "client-roles-confirmed", "owner-request-accepted", "all-clients-observed-replication", "observer-request-rejected"]
+      },
+      "OwnerClient": {
+        "evidence": { "acceptedStateObservationCount": 1 },
+        "readyMilestones": ["client-connected", "role-assigned", "initial-state-observed", "fixture-spawned"],
+        "assertions": ["client-observed-authoritative-transfer", "client-observed-rejection-state"],
+        "milestones": ["client-connected", "role-assigned", "initial-state-observed", "fixture-spawned", "owner-request-sent", "replication-observed", "rejection-observed"]
+      },
+      "ObserverClient": {
+        "evidence": { "acceptedStateObservationCount": 1 },
+        "readyMilestones": ["client-connected", "role-assigned", "initial-state-observed", "fixture-spawned"],
+        "assertions": ["client-observed-authoritative-transfer", "client-observed-rejection-state"],
+        "milestones": ["client-connected", "role-assigned", "initial-state-observed", "fixture-spawned", "replication-observed", "observer-request-sent", "rejection-observed"]
+      }
+    }
+  }
+}

@@ -217,6 +217,143 @@ function ConvertTo-QuotedProcessArgument {
     return '"' + $Value.Replace('"', '\"') + '"'
 }
 
+function Get-NetworkTestInputFingerprint {
+    param(
+        [Parameter(Mandatory = $true)][string]$ResolvedProjectPath,
+        [Parameter(Mandatory = $true)][string]$HarnessRootPath
+    )
+
+    $inputs = [System.Collections.Generic.List[object]]::new()
+    $harnessPatterns = @('Runtime', 'Editor')
+    foreach ($relativeRoot in $harnessPatterns) {
+        $absoluteRoot = Join-Path $HarnessRootPath $relativeRoot
+        if (-not (Test-Path -LiteralPath $absoluteRoot -PathType Container)) {
+            continue
+        }
+
+        Get-ChildItem -LiteralPath $absoluteRoot -Recurse -File |
+            Where-Object { $_.Extension -in @('.cs', '.asmdef', '.meta', '.json', '.xml') } |
+            ForEach-Object {
+                $relative = [System.IO.Path]::GetRelativePath($HarnessRootPath, $_.FullName).Replace('\', '/')
+                $inputs.Add([pscustomobject]@{ Label = "harness/$relative"; Path = $_.FullName })
+            }
+    }
+
+    $packageJsonPath = Join-Path $HarnessRootPath 'package.json'
+    if (Test-Path -LiteralPath $packageJsonPath -PathType Leaf) {
+        $inputs.Add([pscustomobject]@{ Label = 'harness/package.json'; Path = $packageJsonPath })
+    }
+
+    $assetsPath = Join-Path $ResolvedProjectPath 'Assets'
+    if (Test-Path -LiteralPath $assetsPath -PathType Container) {
+        Get-ChildItem -LiteralPath $assetsPath -Recurse -File |
+            Where-Object { $_.Extension -in @('.cs', '.asmdef', '.asmref', '.meta') } |
+            ForEach-Object {
+                $relative = [System.IO.Path]::GetRelativePath($ResolvedProjectPath, $_.FullName).Replace('\', '/')
+                $inputs.Add([pscustomobject]@{ Label = "project/$relative"; Path = $_.FullName })
+            }
+    }
+
+    foreach ($relativePath in @('Packages\manifest.json', 'Packages\packages-lock.json')) {
+        $absolutePath = Join-Path $ResolvedProjectPath $relativePath
+        if (Test-Path -LiteralPath $absolutePath -PathType Leaf) {
+            $inputs.Add([pscustomobject]@{
+                Label = 'project/' + $relativePath.Replace('\', '/')
+                Path = $absolutePath
+            })
+        }
+    }
+
+
+    $projectSettingsPath = Join-Path $ResolvedProjectPath 'ProjectSettings'
+    if (Test-Path -LiteralPath $projectSettingsPath -PathType Container) {
+        Get-ChildItem -LiteralPath $projectSettingsPath -Recurse -File | ForEach-Object {
+            $relative = [System.IO.Path]::GetRelativePath($ResolvedProjectPath, $_.FullName).Replace('\', '/')
+            $inputs.Add([pscustomobject]@{ Label = "project/$relative"; Path = $_.FullName })
+        }
+    }
+
+    $manifestPath = Join-Path $ResolvedProjectPath 'Packages\manifest.json'
+    if (Test-Path -LiteralPath $manifestPath -PathType Leaf) {
+        $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+        $manifestDirectory = Split-Path -Parent $manifestPath
+        foreach ($dependency in $manifest.dependencies.PSObject.Properties) {
+            $dependencyValue = [string]$dependency.Value
+            if (-not $dependencyValue.StartsWith('file:', [System.StringComparison]::OrdinalIgnoreCase)) {
+                continue
+            }
+
+            $localValue = [System.Uri]::UnescapeDataString($dependencyValue.Substring(5))
+            $localPath = if ([System.IO.Path]::IsPathRooted($localValue)) {
+                [System.IO.Path]::GetFullPath($localValue)
+            }
+            else {
+                [System.IO.Path]::GetFullPath((Join-Path $manifestDirectory $localValue))
+            }
+
+            if (-not (Test-Path -LiteralPath $localPath)) {
+                throw "Local package dependency '$($dependency.Name)' resolves to missing path '$localPath'."
+            }
+
+            if ((Test-Path -LiteralPath $localPath -PathType Container) -and
+                -not $localPath.TrimEnd('\').Equals($HarnessRootPath.TrimEnd('\'), [System.StringComparison]::OrdinalIgnoreCase)) {
+                $localPackageManifest = Join-Path $localPath 'package.json'
+                if (-not (Test-Path -LiteralPath $localPackageManifest -PathType Leaf)) {
+                    throw "Local package dependency '$($dependency.Name)' resolves to '$localPath', which has no package.json."
+                }
+
+                $excludedPackageDirectories = @(
+                    '.git', '.svn', '.hg', '.vs', '.idea',
+                    'Library', 'Temp', 'Logs', 'obj', 'bin', 'Artifacts'
+                )
+                $packageDirectories = [System.Collections.Generic.Stack[System.IO.DirectoryInfo]]::new()
+                $packageDirectories.Push([System.IO.DirectoryInfo]::new($localPath))
+                while ($packageDirectories.Count -gt 0) {
+                    $packageDirectory = $packageDirectories.Pop()
+                    foreach ($file in $packageDirectory.EnumerateFiles()) {
+                        $relative = [System.IO.Path]::GetRelativePath($localPath, $file.FullName).Replace('\', '/')
+                        $inputs.Add([pscustomobject]@{
+                            Label = "local-package/$($dependency.Name)/$relative"
+                            Path = $file.FullName
+                        })
+                    }
+
+                    foreach ($directory in $packageDirectory.EnumerateDirectories()) {
+                        $isReparsePoint = ($directory.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0
+                        $isExcluded = $directory.Name -in $excludedPackageDirectories -or
+                            $directory.Name.StartsWith('.') -or
+                            $directory.Name.EndsWith('~')
+                        if (-not $isReparsePoint -and -not $isExcluded) {
+                            $packageDirectories.Push($directory)
+                        }
+                    }
+                }
+            }
+            elseif (Test-Path -LiteralPath $localPath -PathType Leaf) {
+                $inputs.Add([pscustomobject]@{
+                    Label = "local-package/$($dependency.Name)/$([System.IO.Path]::GetFileName($localPath))"
+                    Path = $localPath
+                })
+            }
+        }
+    }
+
+    $incrementalHash = [System.Security.Cryptography.IncrementalHash]::CreateHash(
+        [System.Security.Cryptography.HashAlgorithmName]::SHA256)
+    try {
+        foreach ($input in ($inputs | Sort-Object -Property Label -Unique)) {
+            $labelBytes = [System.Text.Encoding]::UTF8.GetBytes([string]$input.Label + "`n")
+            $incrementalHash.AppendData($labelBytes)
+            $incrementalHash.AppendData([System.IO.File]::ReadAllBytes([string]$input.Path))
+        }
+
+        return [System.Convert]::ToHexString($incrementalHash.GetHashAndReset()).ToLowerInvariant()
+    }
+    finally {
+        $incrementalHash.Dispose()
+    }
+}
+
 function Start-NetworkTestViewer {
     param([Parameter(Mandatory = $true)][string]$ResolvedRunPath)
 
@@ -295,21 +432,62 @@ function Wait-ForRoleArtifact {
     throw "Reached the global run deadline while waiting for $Description at '$ArtifactPath'."
 }
 
+function Wait-ForRoleExit {
+    param(
+        [Parameter(Mandatory = $true)][System.Diagnostics.Process]$Process,
+        [Parameter(Mandatory = $true)][string]$Role,
+        [Parameter(Mandatory = $true)][datetime]$DeadlineUtc
+    )
+
+    while ([DateTime]::UtcNow -lt $DeadlineUtc) {
+        if ($Process.HasExited) {
+            if ($Process.ExitCode -ne 0) {
+                throw "$Role process $($Process.Id) exited with code $($Process.ExitCode) after publishing its result."
+            }
+
+            return
+        }
+
+        Start-Sleep -Milliseconds 100
+    }
+
+    throw "Reached the global run deadline while waiting for $Role process $($Process.Id) to exit naturally."
+}
+
 function Read-ValidatedReadyReport {
     param(
         [Parameter(Mandatory = $true)][string]$Path,
         [Parameter(Mandatory = $true)][string]$ExpectedRunId,
         [Parameter(Mandatory = $true)][string]$ExpectedScenario,
-        [Parameter(Mandatory = $true)][string]$ExpectedRole
+        [Parameter(Mandatory = $true)][string]$ExpectedRole,
+        [Parameter(Mandatory = $true)]$ScenarioContracts
     )
 
     $report = Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json
-    if ($report.schemaVersion -ne 1) {
+    if ($report.schemaVersion -ne 2) {
         throw "Ready report '$Path' has unsupported schema version '$($report.schemaVersion)'."
     }
 
     if ($report.runId -ne $ExpectedRunId -or $report.scenarioId -ne $ExpectedScenario -or $report.role -ne $ExpectedRole) {
         throw "Ready report '$Path' does not match run '$ExpectedRunId', scenario '$ExpectedScenario', role '$ExpectedRole'."
+    }
+
+    $scenarioContractProperty = $ScenarioContracts.PSObject.Properties[$ExpectedScenario]
+    if ($ExpectedScenario.StartsWith('Harness.', [System.StringComparison]::Ordinal) -and
+        $null -eq $scenarioContractProperty) {
+        throw "Built-in scenario '$ExpectedScenario' has no coordinator-owned contract."
+    }
+
+    if ($null -ne $scenarioContractProperty) {
+        $roleContractProperty = $scenarioContractProperty.Value.roles.PSObject.Properties[$ExpectedRole]
+        if ($null -eq $roleContractProperty) {
+            throw "Built-in scenario contract '$ExpectedScenario' has no ready contract for role '$ExpectedRole'."
+        }
+
+        Assert-ExactSequence `
+            -Actual $report.milestones `
+            -Expected $roleContractProperty.Value.readyMilestones `
+            -Description "Role '$ExpectedRole' ready milestones"
     }
 
     return $report
@@ -326,19 +504,88 @@ function ConvertTo-StableFactsJson {
     return $orderedFacts | ConvertTo-Json -Depth 12 -Compress
 }
 
+function Assert-ExactPrimitiveObject {
+    param(
+        [Parameter(Mandatory = $true)]$Actual,
+        [Parameter(Mandatory = $true)]$Expected,
+        [Parameter(Mandatory = $true)][string]$Description
+    )
+
+    $actualNames = @($Actual.PSObject.Properties.Name | Sort-Object)
+    $expectedNames = if ($Expected -is [System.Collections.IDictionary]) {
+        @($Expected.Keys | ForEach-Object { [string]$_ } | Sort-Object)
+    }
+    else {
+        @($Expected.PSObject.Properties.Name | Sort-Object)
+    }
+
+    $actualNameJson = ConvertTo-Json -InputObject $actualNames -Compress
+    $expectedNameJson = ConvertTo-Json -InputObject $expectedNames -Compress
+    if ($actualNameJson -ne $expectedNameJson) {
+        throw "$Description keys were '$([string]::Join(',', $actualNames))'; expected '$([string]::Join(',', $expectedNames))'."
+    }
+
+    foreach ($name in $expectedNames) {
+        $actualValue = $Actual.PSObject.Properties[$name].Value
+        $expectedValue = if ($Expected -is [System.Collections.IDictionary]) {
+            $Expected[$name]
+        }
+        else {
+            $Expected.PSObject.Properties[$name].Value
+        }
+
+        $actualJson = ConvertTo-Json -InputObject $actualValue -Depth 12 -Compress
+        $expectedJson = ConvertTo-Json -InputObject $expectedValue -Depth 12 -Compress
+        if ($actualJson -ne $expectedJson) {
+            throw "$Description value '$name' was '$actualJson'; expected '$expectedJson'."
+        }
+    }
+}
+
+function Assert-ExactSequence {
+    param(
+        [Parameter(Mandatory = $true)]$Actual,
+        [Parameter(Mandatory = $true)]$Expected,
+        [Parameter(Mandatory = $true)][string]$Description
+    )
+
+    $actualJson = ConvertTo-Json -InputObject @($Actual) -Depth 12 -Compress
+    $expectedJson = ConvertTo-Json -InputObject @($Expected) -Depth 12 -Compress
+    if ($actualJson -ne $expectedJson) {
+        throw "$Description was '$actualJson'; expected '$expectedJson'."
+    }
+}
+
+function Read-BuiltInScenarioContracts {
+    $contractPath = Join-Path $PSScriptRoot 'BuiltInScenarioContracts.json'
+    if (-not (Test-Path -LiteralPath $contractPath -PathType Leaf)) {
+        throw "Built-in scenario contract file '$contractPath' does not exist."
+    }
+
+    return Get-Content -LiteralPath $contractPath -Raw | ConvertFrom-Json
+}
+
 function Assert-FinalReports {
     param(
         [Parameter(Mandatory = $true)][System.Collections.IDictionary]$ReportPaths,
         [Parameter(Mandatory = $true)][string]$ExpectedRunId,
-        [Parameter(Mandatory = $true)][string]$ExpectedScenario
+        [Parameter(Mandatory = $true)][string]$ExpectedScenario,
+        [Parameter(Mandatory = $true)]$ScenarioContracts
     )
 
+    $scenarioContractProperty = $ScenarioContracts.PSObject.Properties[$ExpectedScenario]
+    if ($ExpectedScenario.StartsWith('Harness.', [System.StringComparison]::Ordinal) -and
+        $null -eq $scenarioContractProperty) {
+        throw "Built-in scenario '$ExpectedScenario' has no coordinator-owned contract."
+    }
+
+    $scenarioContract = if ($null -eq $scenarioContractProperty) { $null } else { $scenarioContractProperty.Value }
     $reports = [ordered]@{}
     foreach ($role in @('Server', 'OwnerClient', 'ObserverClient')) {
         $path = [string]$ReportPaths[$role]
         $report = Get-Content -LiteralPath $path -Raw | ConvertFrom-Json
 
-        if ($report.schemaVersion -ne 1) {
+    if ($report.schemaVersion -ne 2) {
             throw "Result '$path' has unsupported schema version '$($report.schemaVersion)'."
         }
 
@@ -350,21 +597,92 @@ function Assert-FinalReports {
             throw "Role '$role' failed: $($report.failure). See '$($report.logPath)'."
         }
 
+        if ($null -eq $report.sharedFacts -or @($report.sharedFacts.PSObject.Properties).Count -eq 0) {
+            throw "Role '$role' published no shared facts."
+        }
+
+        if ($null -eq $report.roleEvidence) {
+            throw "Role '$role' published no role evidence."
+        }
+
+        $expectedProvenance = if ($role -eq 'Server') { 'dedicated-server-authority' } else { 'client-replicated-read' }
+        if ($report.roleEvidence.role -ne $role -or
+            $report.roleEvidence.provenance -ne $expectedProvenance -or
+            [int]$report.roleEvidence.processId -le 0 -or
+            [string]::IsNullOrWhiteSpace([string]$report.roleEvidence.transitionTrace)) {
+            throw "Role '$role' published invalid process-derived role evidence."
+        }
+
+        $expectedTrace = [string]::Join('>', [string[]]$report.milestones)
+        if ($report.roleEvidence.transitionTrace -ne $expectedTrace) {
+            throw "Role '$role' transition trace does not match its milestone sequence."
+        }
+
+        $assertions = @($report.assertions)
+        if ($assertions.Count -eq 0 -or @($assertions | Sort-Object -Unique).Count -ne $assertions.Count) {
+            throw "Role '$role' must publish one or more unique assertions."
+        }
+
+        if ($null -ne $scenarioContract) {
+            if ([int]$report.stateRevision -ne [int]$scenarioContract.stateRevision) {
+                throw "Role '$role' reported revision '$($report.stateRevision)'; built-in contract expects '$($scenarioContract.stateRevision)'."
+            }
+
+            Assert-ExactPrimitiveObject `
+                -Actual $report.sharedFacts `
+                -Expected $scenarioContract.sharedFacts `
+                -Description "Role '$role' shared facts"
+
+            $roleContractProperty = $scenarioContract.roles.PSObject.Properties[$role]
+            if ($null -eq $roleContractProperty) {
+                throw "Built-in scenario contract '$ExpectedScenario' has no role contract for '$role'."
+            }
+
+            $roleContract = $roleContractProperty.Value
+            $expectedEvidence = [ordered]@{
+                role = $role
+                processId = [int]$report.roleEvidence.processId
+                provenance = $expectedProvenance
+                transitionTrace = $expectedTrace
+            }
+            foreach ($property in $roleContract.evidence.PSObject.Properties) {
+                $expectedEvidence[$property.Name] = $property.Value
+            }
+
+            Assert-ExactPrimitiveObject `
+                -Actual $report.roleEvidence `
+                -Expected $expectedEvidence `
+                -Description "Role '$role' evidence"
+            Assert-ExactSequence `
+                -Actual $report.assertions `
+                -Expected $roleContract.assertions `
+                -Description "Role '$role' assertions"
+            Assert-ExactSequence `
+                -Actual $report.milestones `
+                -Expected $roleContract.milestones `
+                -Description "Role '$role' milestones"
+        }
+
         $reports[$role] = $report
     }
 
     $serverRevision = [int]$reports.Server.stateRevision
-    $serverFacts = ConvertTo-StableFactsJson -Facts $reports.Server.facts
+    $serverFacts = ConvertTo-StableFactsJson -Facts $reports.Server.sharedFacts
 
     foreach ($role in @('OwnerClient', 'ObserverClient')) {
         if ([int]$reports[$role].stateRevision -ne $serverRevision) {
             throw "Role '$role' reported revision '$($reports[$role].stateRevision)' but Server reported '$serverRevision'."
         }
 
-        $roleFacts = ConvertTo-StableFactsJson -Facts $reports[$role].facts
+        $roleFacts = ConvertTo-StableFactsJson -Facts $reports[$role].sharedFacts
         if ($roleFacts -ne $serverFacts) {
             throw "Role '$role' facts do not match authoritative Server facts."
         }
+    }
+
+    $processIds = @($reports.Values | ForEach-Object { [int]$_.roleEvidence.processId })
+    if (@($processIds | Sort-Object -Unique).Count -ne 3) {
+        throw 'Server, OwnerClient, and ObserverClient did not report distinct operating-system process IDs.'
     }
 
     return $reports
@@ -434,6 +752,12 @@ if ([string]::IsNullOrWhiteSpace($PlayerPath)) {
 }
 
 $resolvedPlayerPath = Get-AbsolutePath -Path $PlayerPath
+$scenarioContracts = Read-BuiltInScenarioContracts
+$harnessRootPath = Split-Path -Parent $PSScriptRoot
+$inputFingerprint = Get-NetworkTestInputFingerprint `
+    -ResolvedProjectPath $resolvedProjectPath `
+    -HarnessRootPath $harnessRootPath
+$fingerprintPath = $resolvedPlayerPath + '.inputs.sha256'
 $runId = (Get-Date -Format 'yyyyMMdd-HHmmss') + '-' + [System.Guid]::NewGuid().ToString('N').Substring(0, 8)
 $runPath = Join-Path $resolvedArtifactsPath "Runs\$runId"
 [System.IO.Directory]::CreateDirectory($runPath) | Out-Null
@@ -468,16 +792,30 @@ try {
             -BuildProjectPath $buildProjectPath `
             -ResolvedPlayerPath $resolvedPlayerPath `
             -BuildLogPath $buildLogPath
+
+        [System.IO.File]::WriteAllText(
+            $fingerprintPath,
+            $inputFingerprint,
+            [System.Text.UTF8Encoding]::new($false))
     }
 
     if (-not (Test-Path -LiteralPath $resolvedPlayerPath -PathType Leaf)) {
         throw "Network test Player '$resolvedPlayerPath' does not exist. Build it or omit -ReusePlayer."
     }
 
+    if (-not (Test-Path -LiteralPath $fingerprintPath -PathType Leaf)) {
+        throw "Network test Player fingerprint '$fingerprintPath' does not exist. Rebuild without -ReusePlayer."
+    }
+
+    $builtFingerprint = (Get-Content -LiteralPath $fingerprintPath -Raw).Trim()
+    if ($builtFingerprint -ne $inputFingerprint) {
+        throw "Refusing to reuse stale network test Player. Source, dependencies, Unity version, or harness inputs changed; rebuild without -ReusePlayer."
+    }
+
     $configurationPath = Join-Path $runPath 'config.json'
     $port = Get-FreeUdpPort
     $configuration = [ordered]@{
-        schemaVersion = 1
+        schemaVersion = 2
         runId = $runId
         scenarioId = $Scenario
         address = '127.0.0.1'
@@ -515,7 +853,12 @@ try {
     $childProcesses.Add($serverProcess)
 
     Wait-ForRoleArtifact -Process $serverProcess -ArtifactPath $paths.Server.Ready -Description 'Server readiness' -DeadlineUtc $runDeadlineUtc
-    Read-ValidatedReadyReport -Path $paths.Server.Ready -ExpectedRunId $runId -ExpectedScenario $Scenario -ExpectedRole 'Server' | Out-Null
+    Read-ValidatedReadyReport `
+        -Path $paths.Server.Ready `
+        -ExpectedRunId $runId `
+        -ExpectedScenario $Scenario `
+        -ExpectedRole 'Server' `
+        -ScenarioContracts $scenarioContracts | Out-Null
 
     foreach ($clientRole in @('OwnerClient', 'ObserverClient')) {
         $clientProcess = Start-NetworkTestRole `
@@ -528,20 +871,17 @@ try {
             -ResultPath $paths[$clientRole].Result `
             -LogPath $paths[$clientRole].Log
         $childProcesses.Add($clientProcess)
-    }
-
-    for ($index = 1; $index -lt $childProcesses.Count; $index++) {
-        $role = if ($index -eq 1) { 'OwnerClient' } else { 'ObserverClient' }
         Wait-ForRoleArtifact `
-            -Process $childProcesses[$index] `
-            -ArtifactPath $paths[$role].Ready `
-            -Description "$role readiness" `
+            -Process $clientProcess `
+            -ArtifactPath $paths[$clientRole].Ready `
+            -Description "$clientRole readiness" `
             -DeadlineUtc $runDeadlineUtc
         Read-ValidatedReadyReport `
-            -Path $paths[$role].Ready `
+            -Path $paths[$clientRole].Ready `
             -ExpectedRunId $runId `
             -ExpectedScenario $Scenario `
-            -ExpectedRole $role | Out-Null
+            -ExpectedRole $clientRole `
+            -ScenarioContracts $scenarioContracts | Out-Null
     }
 
     $roles = @('Server', 'OwnerClient', 'ObserverClient')
@@ -554,12 +894,24 @@ try {
             -DeadlineUtc $runDeadlineUtc
     }
 
+
+    for ($index = 0; $index -lt $childProcesses.Count; $index++) {
+        Wait-ForRoleExit `
+            -Process $childProcesses[$index] `
+            -Role $roles[$index] `
+            -DeadlineUtc $runDeadlineUtc
+    }
+
     $reportPaths = [ordered]@{
         Server = $paths.Server.Result
         OwnerClient = $paths.OwnerClient.Result
         ObserverClient = $paths.ObserverClient.Result
     }
-    $reports = Assert-FinalReports -ReportPaths $reportPaths -ExpectedRunId $runId -ExpectedScenario $Scenario
+    $reports = Assert-FinalReports `
+        -ReportPaths $reportPaths `
+        -ExpectedRunId $runId `
+        -ExpectedScenario $Scenario `
+        -ScenarioContracts $scenarioContracts
 
     $finalOutput = [ordered]@{
         status = 'passed'
@@ -568,7 +920,7 @@ try {
         stateRevision = $reports.Server.stateRevision
         artifactsPath = $runPath
         playerPath = $resolvedPlayerPath
-        facts = $reports.Server.facts
+        sharedFacts = $reports.Server.sharedFacts
     }
 }
 catch {

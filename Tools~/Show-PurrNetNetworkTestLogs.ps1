@@ -261,10 +261,29 @@ function Format-ArtifactEvidence {
             }
         }
 
-        $facts = $result.PSObject.Properties['facts']
+        $assertions = $result.PSObject.Properties['assertions']
+        if ($null -ne $assertions -and $null -ne $assertions.Value) {
+            $lines.Add('')
+            $lines.Add('ROLE-OWNED ASSERTIONS')
+            foreach ($assertion in @($assertions.Value)) {
+                $lines.Add("  PASS: $assertion")
+            }
+        }
+
+        $evidence = $result.PSObject.Properties['roleEvidence']
+        if ($null -ne $evidence -and $null -ne $evidence.Value) {
+            $lines.Add('')
+            $lines.Add('ROLE-LOCAL EVIDENCE')
+            foreach ($item in $evidence.Value.PSObject.Properties) {
+                $value = if ($null -eq $item.Value) { 'null' } elseif ($item.Value -is [bool]) { $item.Value.ToString().ToLowerInvariant() } elseif ([string]::IsNullOrEmpty([string]$item.Value)) { '<empty>' } else { [string]$item.Value }
+                $lines.Add("  $($item.Name) = $value")
+            }
+        }
+
+        $facts = $result.PSObject.Properties['sharedFacts']
         if ($null -ne $facts -and $null -ne $facts.Value) {
             $lines.Add('')
-            $lines.Add('AUTHORITATIVE FACTS (EXPECTED TO AGREE)')
+            $lines.Add('SHARED FACTS (EXPECTED TO AGREE)')
             foreach ($fact in $facts.Value.PSObject.Properties) {
                 $value = if ($null -eq $fact.Value) { 'null' } elseif ($fact.Value -is [bool]) { $fact.Value.ToString().ToLowerInvariant() } elseif ([string]::IsNullOrEmpty([string]$fact.Value)) { '<empty>' } else { [string]$fact.Value }
                 $lines.Add("  $($fact.Name) = $value")

@@ -1,6 +1,6 @@
 {
   "name": "com.amilverton.purrnet-network-tests",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "displayName": "PurrNet Network Test Harness",
   "description": "Build and run isolated, multi-process PurrNet integration scenarios with compact machine-readable results.",
   "unity": "6000.0",

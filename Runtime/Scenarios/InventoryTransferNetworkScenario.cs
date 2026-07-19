@@ -132,6 +132,7 @@ namespace Amilverton.PurrNetTesting
                 _observerPlayer = info.sender;
             }
 
+            ConfirmRole(info.sender, requestedRole);
             ConfirmRolesWhenReady();
         }
 
@@ -152,8 +153,6 @@ namespace Amilverton.PurrNetTesting
             _rolesConfirmed = true;
             Session.AddMilestone("client-roles-confirmed");
 
-            ConfirmRole(_ownerPlayer.Value, NetworkTestRole.OwnerClient);
-            ConfirmRole(_observerPlayer.Value, NetworkTestRole.ObserverClient);
             BeginAcceptedTransfer(_ownerPlayer.Value);
         }
 
@@ -282,6 +281,10 @@ namespace Amilverton.PurrNetTesting
             }
 
             Session.AddMilestone("observer-request-rejected");
+            Session.RecordAssertion("server-accepted-owner-transfer-once");
+            Session.RecordAssertion("server-rejected-observer-transfer-without-mutation");
+            Session.SetEvidence("acceptedMutationCount", 1);
+            Session.SetEvidence("rejectedMutationCount", 1);
             ReportUnauthorizedRequestRejected(unchanged);
             RecordFinalFacts(unchanged);
             Session.Pass(unchanged.Revision);
@@ -370,6 +373,9 @@ namespace Amilverton.PurrNetTesting
             }
 
             Session.AddMilestone("rejection-observed");
+            Session.RecordAssertion("client-observed-authoritative-transfer");
+            Session.RecordAssertion("client-observed-rejection-state");
+            Session.SetEvidence("acceptedStateObservationCount", 1);
             RecordFinalFacts(observed);
             Session.Pass(observed.Revision);
         }

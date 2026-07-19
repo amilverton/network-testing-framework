@@ -14,7 +14,7 @@ namespace Amilverton.PurrNetTesting
     /// </summary>
     public sealed class NetworkTestBootstrap : MonoBehaviour
     {
-        private const int SchemaVersion = 1;
+        private const int SchemaVersion = 2;
 
         [SerializeField] private GameObject networkRoot;
         private NetworkManager networkManager;
@@ -22,7 +22,9 @@ namespace Amilverton.PurrNetTesting
         [SerializeField] private NetworkTestScenarioRegistration[] scenarioRegistrations =
             Array.Empty<NetworkTestScenarioRegistration>();
 
-        private readonly Dictionary<string, object> _facts = new Dictionary<string, object>();
+        private readonly Dictionary<string, object> _sharedFacts = new Dictionary<string, object>();
+        private readonly Dictionary<string, object> _roleEvidence = new Dictionary<string, object>();
+        private readonly List<string> _assertions = new List<string>();
         private readonly List<string> _milestones = new List<string>();
         private readonly NetworkTestResultWriter _resultWriter = new NetworkTestResultWriter();
 
@@ -33,6 +35,8 @@ namespace Amilverton.PurrNetTesting
         private bool _initialized;
         private bool _readyPublished;
         private bool _finished;
+        private int _exitCode;
+        private NetworkTestReport _publishedReport;
 
         public static NetworkTestBootstrap Current { get; private set; }
 
@@ -62,6 +66,7 @@ namespace Amilverton.PurrNetTesting
 
             Current = this;
             Application.runInBackground = true;
+            Application.logMessageReceived += HandleLogMessage;
 
             if (networkRoot == null)
             {
@@ -211,6 +216,7 @@ namespace Amilverton.PurrNetTesting
                 return;
 
             _milestones.Add(milestone);
+            Debug.Log($"[Harness:{Role}] Milestone: {milestone}");
         }
 
         /// <summary>
@@ -235,6 +241,48 @@ namespace Amilverton.PurrNetTesting
         public void SetFact(string key, bool value)
         {
             SetFactValue(key, value);
+        }
+
+        /// <summary>
+        /// Add role-local string evidence which is intentionally not compared across roles.
+        /// </summary>
+        public void SetEvidence(string key, string value)
+        {
+            SetEvidenceValue(key, value);
+        }
+
+        /// <summary>
+        /// Add role-local integer evidence which is intentionally not compared across roles.
+        /// </summary>
+        public void SetEvidence(string key, int value)
+        {
+            SetEvidenceValue(key, value);
+        }
+
+        /// <summary>
+        /// Add role-local boolean evidence which is intentionally not compared across roles.
+        /// </summary>
+        public void SetEvidence(string key, bool value)
+        {
+            SetEvidenceValue(key, value);
+        }
+
+        /// <summary>
+        /// Record one role-owned assertion that must be unique in the final report.
+        /// </summary>
+        public void RecordAssertion(string assertion)
+        {
+            if (_finished || string.IsNullOrWhiteSpace(assertion))
+                return;
+
+            if (_assertions.Contains(assertion))
+            {
+                Fail($"Assertion '{assertion}' was recorded more than once by role '{Role}'.");
+                return;
+            }
+
+            _assertions.Add(assertion);
+            Debug.Log($"[Harness:{Role}] Assertion passed: {assertion}");
         }
 
         /// <summary>
@@ -264,6 +312,7 @@ namespace Amilverton.PurrNetTesting
             }
 
             _readyPublished = true;
+            Debug.Log($"[Harness:{Role}] Ready for scenario '{ScenarioId}'.");
         }
 
         /// <summary>
@@ -274,6 +323,18 @@ namespace Amilverton.PurrNetTesting
             if (!_readyPublished)
             {
                 Fail("A scenario cannot pass before it publishes role readiness.");
+                return;
+            }
+
+            if (_sharedFacts.Count == 0)
+            {
+                Fail("A passing scenario must publish at least one shared fact.");
+                return;
+            }
+
+            if (_assertions.Count == 0)
+            {
+                Fail("A passing scenario must record at least one role-owned assertion.");
                 return;
             }
 
@@ -290,7 +351,31 @@ namespace Amilverton.PurrNetTesting
                 : failure;
 
             Debug.LogError($"[Fail] {actionableFailure}");
+
+            if (_finished)
+            {
+                RevokePublishedPass(actionableFailure);
+                return;
+            }
+
             Complete("failed", -1, actionableFailure, 1);
+        }
+
+        private void RevokePublishedPass(string failure)
+        {
+            if (_publishedReport == null || _publishedReport.Status != "passed" || _arguments == null)
+                return;
+
+            _publishedReport.Status = "failed";
+            _publishedReport.Failure = failure;
+            _exitCode = 1;
+
+            NetworkTestWriteResult writeResult = _resultWriter.Write(_arguments.ResultPath, _publishedReport);
+            if (!writeResult.Succeeded)
+            {
+                Debug.LogError($"[RevokePublishedPass] {writeResult.Failure}");
+                _exitCode = 2;
+            }
         }
 
         private void SetFactValue(string key, object value)
@@ -301,7 +386,20 @@ namespace Amilverton.PurrNetTesting
                 return;
             }
 
-            _facts[key] = value;
+            _sharedFacts[key] = value;
+            Debug.Log($"[Harness:{Role}] Shared fact: {key}={value}");
+        }
+
+        private void SetEvidenceValue(string key, object value)
+        {
+            if (string.IsNullOrWhiteSpace(key))
+            {
+                Debug.LogError("[SetEvidenceValue] Evidence key cannot be empty.");
+                return;
+            }
+
+            _roleEvidence[key] = value;
+            Debug.Log($"[Harness:{Role}] Role evidence: {key}={value}");
         }
 
         private void Complete(string status, int stateRevision, string failure, int exitCode)
@@ -310,12 +408,20 @@ namespace Amilverton.PurrNetTesting
                 return;
 
             _finished = true;
+            _exitCode = exitCode;
 
             if (_arguments == null)
             {
-                StartCoroutine(QuitAfterDelay(exitCode));
+                StartCoroutine(QuitAfterDelay());
                 return;
             }
+
+            _roleEvidence["role"] = Role.ToString();
+            _roleEvidence["processId"] = System.Diagnostics.Process.GetCurrentProcess().Id;
+            _roleEvidence["provenance"] = Role == NetworkTestRole.Server
+                ? "dedicated-server-authority"
+                : "client-replicated-read";
+            _roleEvidence["transitionTrace"] = string.Join(">", _milestones);
 
             NetworkTestReport report = new NetworkTestReport
             {
@@ -326,25 +432,46 @@ namespace Amilverton.PurrNetTesting
                 Status = status,
                 Milestones = new List<string>(_milestones),
                 StateRevision = stateRevision,
-                Facts = new Dictionary<string, object>(_facts),
+                SharedFacts = new Dictionary<string, object>(_sharedFacts),
+                RoleEvidence = new Dictionary<string, object>(_roleEvidence),
+                Assertions = new List<string>(_assertions),
                 Failure = failure,
                 LogPath = _arguments.LogPath
             };
 
+            _publishedReport = report;
             NetworkTestWriteResult writeResult = _resultWriter.Write(_arguments.ResultPath, report);
             if (!writeResult.Succeeded)
             {
                 Debug.LogError($"[Complete] {writeResult.Failure}");
-                exitCode = 2;
+                _exitCode = 2;
             }
 
-            StartCoroutine(QuitAfterDelay(exitCode));
+            Debug.Log($"[Harness:{Role}] Result published: {status}, revision={stateRevision}, assertions={_assertions.Count}.");
+            StartCoroutine(QuitAfterDelay());
         }
 
-        private IEnumerator QuitAfterDelay(int exitCode)
+        private IEnumerator QuitAfterDelay()
         {
             yield return new WaitForSecondsRealtime(0.75f);
-            Application.Quit(exitCode);
+            Application.Quit(_exitCode);
+        }
+
+        private void HandleLogMessage(string condition, string stackTrace, LogType type)
+        {
+            if (type != LogType.Exception && type != LogType.Assert)
+                return;
+
+            if (!_finished)
+            {
+                Fail($"An unhandled {type} was logged before completion: {condition}");
+                return;
+            }
+
+            if (_publishedReport == null || _publishedReport.Status != "passed")
+                return;
+
+            RevokePublishedPass($"A late {type} was logged after Pass: {condition}");
         }
 
         private bool TryFindScenario(string scenarioId, out NetworkTestScenarioRegistration registration)
@@ -438,11 +565,14 @@ namespace Amilverton.PurrNetTesting
         {
             _finished = true;
             Debug.LogError(failure);
-            StartCoroutine(QuitAfterDelay(2));
+            _exitCode = 2;
+            StartCoroutine(QuitAfterDelay());
         }
 
         private void OnDestroy()
         {
+            Application.logMessageReceived -= HandleLogMessage;
+
             if (Current == this)
                 Current = null;
         }

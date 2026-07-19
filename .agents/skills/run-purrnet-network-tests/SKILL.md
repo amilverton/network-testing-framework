@@ -5,8 +5,9 @@ description: Build or reuse a standalone Unity test Player, run a dedicated serv
 
 # Run PurrNet network tests
 
-Use the installed package's coordinator as the source of truth. A pass requires matching passed JSON
-from `Server`, `OwnerClient`, and `ObserverClient`; a successful build or one client report is not a pass.
+Use the installed package's coordinator as the source of truth. A pass requires contract-valid JSON
+from `Server`, `OwnerClient`, and `ObserverClient`, followed by three natural process exits with code
+zero; a successful build or one client report is not a pass.
 
 ## Workflow
 
@@ -16,12 +17,14 @@ from `Server`, `OwnerClient`, and `ObserverClient`; a successful build or one cl
    install dependencies.
 3. Resolve `Tools~/Invoke-PurrNetNetworkTests.ps1` from either an embedded package path or
    `Library/PackageCache/com.amilverton.purrnet-network-tests@*/`.
-4. Run the scenario with the staging build default. Use `-BuildInPlace` only when the exact project is
+4. Run one scenario with the staging build default, or use
+   `Tools~/Invoke-PurrNetNetworkTestSuite.ps1` for the full built-in matrix. Use `-BuildInPlace` only when the exact project is
    closed and a local `file:` package dependency would break in staging. Use `-ReusePlayer` only when
-   package and scenario code have not changed since the last successful build. Add `-OpenViewer` only
+   a successful build exists; the coordinator rejects reuse if Player inputs, dependency locks, or
+   Unity version changed. Add `-OpenViewer` only
    when a human wants the optional three-pane evidence and raw-log window; automated runs do not
-   need it. The default evidence tabs show role-specific milestones and shared authoritative facts.
-5. Parse the command's final JSON. Report the run ID, scenario, revision, facts, and artifact path.
+   need it. The default evidence tabs show assertions, role-local evidence, milestones, and shared facts.
+5. Parse the command's final JSON. Report the run ID, scenario, revision, shared facts, and artifact path.
 6. On failure, inspect the newest run's existing `*.result.json`, `*.ready.json`, and role logs before
    changing code. Preserve those artifacts.
 
@@ -35,14 +38,17 @@ $package = Get-ChildItem .\Library\PackageCache -Directory |
     -Scenario 'Harness.InventoryTransfer'
 ```
 
+For broad validation, run `Invoke-PurrNetNetworkTestSuite.ps1` and require every requested repetition
+to pass. Never accept a majority of repeated runs.
+
 ## Integrity rules
 
 - Do not use PurrNet Local Transport as multi-process replication evidence.
 - Do not start batch Unity against a project already open in the Editor; keep the staging default.
 - Do not replace readiness with fixed sleeps. A ready file must come from the scenario-owned milestone.
 - Do not bypass a gameplay RPC or call its server implementation directly.
-- Treat a timeout, early process exit, malformed JSON, failed role, mismatched revision, or mismatched
-  facts as a failure.
+- Treat a timeout, early/non-zero process exit, malformed JSON, failed role, stale Player fingerprint,
+  mismatched revision/facts, or built-in contract mismatch as a failure.
 - Stop only the child processes launched by the coordinator. Never remove retained run artifacts while
   diagnosing a failure.
 
@@ -51,4 +57,6 @@ $package = Get-ChildItem .\Library\PackageCache -Directory |
 Read the installed package's `Documentation~/protocol.md`. Add a concrete `NetworkTestScenario` with
 one stable `[NetworkTestScenario("Feature.Scenario")]` ID. Keep setup code-driven, send client intent
 through the normal PurrNet request, derive the actor from `RPCInfo.sender`, wait for replicated facts,
-and finish through `Session.Pass(revision)` or `Session.Fail(message)`.
+record at least one `Session.RecordAssertion`, use `Session.SetEvidence` for asymmetric local
+observations, and finish through `Session.Pass(revision)` or `Session.Fail(message)`. Add or update a
+coordinator-owned contract when the scenario ships as a built-in.

@@ -4,13 +4,15 @@ Build one test-only Unity Player, launch it as a dedicated server plus two indep
 receive compact machine-readable proof of PurrNet authority and replication. The normal Unity Editor
 can remain open because the default build happens in an isolated staging copy.
 
-The first included scenario, `Harness.InventoryTransfer`, proves a complete vertical slice:
+The package includes seven real-network scenarios:
 
-- the owner client sends the normal request through a PurrNet `ServerRpc`;
-- the server derives the caller from `RPCInfo.sender`, validates it, and commits one state revision;
-- both the owner and a non-owner observer receive the same `SyncVar` state;
-- the observer attempts the protected request through the same RPC;
-- the server rejects it, and all three roles prove that the state and revision remained unchanged.
+- `Harness.RpcRouting` — exact TargetRpc and ObserversRpc inclusion/exclusion;
+- `Harness.CrossPlayerDamage` — sender-derived damage, health replication, and replay rejection;
+- `Harness.LateJoinState` — committed late-join snapshot followed by a live delta;
+- `Harness.OwnerNetworkTransform` — owner movement, convergence, and observer spoof isolation;
+- `Harness.OwnershipTransfer` — old-owner mutation, handoff, new-owner mutation, and revocation;
+- `Harness.SyncListOrder` — exact add/add/set/remove callback order and final collection state;
+- `Harness.InventoryTransfer` — accepted owner intent and rejected observer mutation.
 
 This is a focused standalone integration harness, not a replacement for Unity Test Framework unit or
 PlayMode tests.
@@ -55,13 +57,14 @@ $package = Get-ChildItem .\Library\PackageCache -Directory |
     -Scenario 'Harness.InventoryTransfer'
 ```
 
-The command returns JSON only after `Server`, `OwnerClient`, and `ObserverClient` all publish passing
-results whose revision and shared facts match. Failed runs retain ready files, result files, and one
-log per process under `Artifacts/NetworkTests/Runs/<run-id>`.
+The command returns JSON only after all roles match the scenario contract and all three Player
+processes exit naturally with code zero. Failed runs retain ready files, result files, and one log per
+process under `Artifacts/NetworkTests/Runs/<run-id>`. Built-in contracts independently fix the exact
+revision, facts, evidence, assertions, and milestone order expected from each role.
 
 Add `-OpenViewer` to the coordinator for a live Windows view with side-by-side Server, OwnerClient,
-and ObserverClient evidence. Each pane opens on the role's readiness, revision, milestones, facts,
-and failure details; a `Raw Unity log` tab retains the original Player output. To inspect an existing
+and ObserverClient evidence. Each pane opens on readiness, revision, assertions, role-local evidence,
+shared facts, and failure details; a `Raw Unity log` tab retains the original Player output. To inspect an existing
 run directly:
 
 ```powershell
@@ -79,8 +82,23 @@ pwsh -File .\Tools~\Invoke-PurrNetNetworkTests.ps1 `
     -OpenViewer
 ```
 
-Use `-ReusePlayer` after a successful build to skip Unity import and build time. Rebuild whenever
-scenario or package code changes.
+Use `-ReusePlayer` after a successful build to skip Unity import and build time. Reuse is fail-closed:
+the coordinator fingerprints Player inputs, the dependency lock, and Unity version and refuses a
+stale Player before launching any role.
+
+## Run the complete matrix
+
+Build once, then run every built-in scenario against that exact Player:
+
+```powershell
+pwsh -File .\Tools~\Invoke-PurrNetNetworkTestSuite.ps1 `
+    -ProjectPath .\TestProject~ `
+    -BuildInPlace `
+    -Repeat 2
+```
+
+Every repetition must pass; the suite never converts an intermittent failure into success by majority
+vote. Add `-ReusePlayer` to reuse a fingerprint-matching build from an earlier command.
 
 ## Add a feature scenario
 
@@ -100,7 +118,9 @@ public sealed class ContainerGiveItemScenario : NetworkTestScenario
 
 The builder discovers attributed types and generates their network prefabs only inside the staging
 project. A scenario owns fixture setup and expected facts; the package owns process roles, endpoint
-configuration, timeouts, atomic files, logs, lifecycle, and cross-role validation. See
+configuration, staggered client launch, timeouts, atomic files, logs, lifecycle, and cross-role
+validation. A passing scenario must publish shared facts and at least one role-owned assertion; use
+`Session.SetEvidence` for observations that intentionally differ by role. See
 [the protocol](Documentation~/protocol.md) for the exact readiness and result contract.
 
 Keep scenarios narrow. Use named network milestones rather than fixed sleeps, validate all client
@@ -122,6 +142,7 @@ PowerShell tool so agent instructions cannot drift away from the actual protocol
 - The generated scene does not serialize PurrNet's `NetworkManager`. PurrNet `1.19.1` produced a corrupt
   standalone `level0` when that component was serialized in the tested Unity 6 editors, so the harness
   creates and configures the real manager and UDP transport on an inactive root at runtime.
-- Every child process is stopped in a `finally` block, while diagnostic run artifacts are retained.
+- Passing child processes must exit naturally. Forced termination is reserved for failure cleanup,
+  while diagnostic run artifacts are retained.
 - PurrNet Local Transport is never used as replication evidence; the included scenario uses UDP over
   loopback and separate operating-system processes.

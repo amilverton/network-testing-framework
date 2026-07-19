@@ -31,14 +31,16 @@ namespace Amilverton.PurrNetTesting.Tests
             string resultPath = Path.Combine(_testDirectory, "server.result.json");
             NetworkTestReport report = new NetworkTestReport
             {
-                SchemaVersion = 1,
+                SchemaVersion = 2,
                 RunId = "run-1",
                 ScenarioId = "Harness.InventoryTransfer",
                 Role = "Server",
                 Status = "passed",
                 Milestones = new List<string> { "server-listening" },
                 StateRevision = 1,
-                Facts = new Dictionary<string, object> { { "amount", 3 } },
+                SharedFacts = new Dictionary<string, object> { { "amount", 3 } },
+                RoleEvidence = new Dictionary<string, object> { { "role", "Server" } },
+                Assertions = new List<string> { "server-validated-amount" },
                 Failure = null,
                 LogPath = "server.log"
             };
@@ -63,7 +65,7 @@ namespace Amilverton.PurrNetTesting.Tests
 
             NetworkTestReadyReport report = new NetworkTestReadyReport
             {
-                SchemaVersion = 1,
+                SchemaVersion = 2,
                 RunId = "run-2",
                 ScenarioId = "Harness.InventoryTransfer",
                 Role = "Server",

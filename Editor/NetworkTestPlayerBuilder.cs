@@ -117,7 +117,10 @@ namespace Amilverton.PurrNetTesting.Editor
                 if (!scenarioIds.Add(attribute.ScenarioId))
                     throw new InvalidOperationException($"Scenario ID '{attribute.ScenarioId}' is declared more than once.");
 
-                scenarios.Add(new DiscoveredScenario(attribute.ScenarioId, scenarioType));
+                scenarios.Add(new DiscoveredScenario(
+                    attribute.ScenarioId,
+                    scenarioType,
+                    attribute.PrefabFeatures));
             }
 
             scenarios.Sort((left, right) => string.CompareOrdinal(left.ScenarioId, right.ScenarioId));
@@ -143,6 +146,8 @@ namespace Amilverton.PurrNetTesting.Editor
                     if (component == null)
                         throw new InvalidOperationException($"Failed to add scenario component '{scenario.ScenarioType.FullName}'.");
 
+                    AddRequestedPrefabFeatures(source, scenario);
+
                     GameObject prefab = PrefabUtility.SaveAsPrefabAsset(source, prefabPath);
                     if (prefab == null)
                         throw new InvalidOperationException($"Failed to create generated scenario prefab '{prefabPath}'.");
@@ -157,6 +162,28 @@ namespace Amilverton.PurrNetTesting.Editor
 
             AssetDatabase.SaveAssets();
             return registrations;
+        }
+
+        private static void AddRequestedPrefabFeatures(GameObject source, DiscoveredScenario scenario)
+        {
+            NetworkTestPrefabFeatures unsupported = scenario.PrefabFeatures &
+                ~NetworkTestPrefabFeatures.NetworkTransform;
+            if (unsupported != NetworkTestPrefabFeatures.None)
+            {
+                throw new InvalidOperationException(
+                    $"Scenario '{scenario.ScenarioId}' requests unsupported prefab features '{unsupported}'.");
+            }
+
+            if ((scenario.PrefabFeatures & NetworkTestPrefabFeatures.NetworkTransform) != 0)
+            {
+                GameObject transformTarget = new GameObject("NetworkTransform Target");
+                transformTarget.transform.SetParent(source.transform, false);
+                if (transformTarget.AddComponent<NetworkTransformFixtureInstaller>() == null)
+                {
+                    throw new InvalidOperationException(
+                        $"Failed to add NetworkTransform installer for scenario '{scenario.ScenarioId}'.");
+                }
+            }
         }
 
         private static void CreateBootstrapScene(NetworkTestScenarioRegistration[] registrations)
@@ -255,14 +282,19 @@ namespace Amilverton.PurrNetTesting.Editor
 
         private readonly struct DiscoveredScenario
         {
-            public DiscoveredScenario(string scenarioId, Type scenarioType)
+            public DiscoveredScenario(
+                string scenarioId,
+                Type scenarioType,
+                NetworkTestPrefabFeatures prefabFeatures)
             {
                 ScenarioId = scenarioId;
                 ScenarioType = scenarioType;
+                PrefabFeatures = prefabFeatures;
             }
 
             public string ScenarioId { get; }
             public Type ScenarioType { get; }
+            public NetworkTestPrefabFeatures PrefabFeatures { get; }
         }
 
         private sealed class NetworkTestBuildReceipt

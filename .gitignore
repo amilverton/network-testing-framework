@@ -38,3 +38,4 @@ Desktop.ini
 
 # Agent and tool scratch
 tmp/
+tmp.meta
