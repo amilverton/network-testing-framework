@@ -1,0 +1,21 @@
+{
+  "name": "Consumer.Project.FixtureAuthoring.Editor",
+  "rootNamespace": "ConsumerProject.FixtureAuthoring.Editor",
+  "references": [
+    "Consumer.Project.Networking",
+    "Consumer.Project.NetworkTests",
+    "Amilverton.PurrNetTesting.Runtime",
+    "PurrNet.Runtime"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

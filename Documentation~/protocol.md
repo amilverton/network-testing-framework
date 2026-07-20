@@ -18,17 +18,31 @@ scenario's initial replicated state.
 Files are written to a temporary sibling and atomically renamed into place. A coordinator must ignore
 files whose names contain `.tmp-`.
 
-## Final results
+## Completion barrier and final results
+
+`Session.Pass(revision)` first publishes a role-specific `*.result.json.complete.json` artifact. The
+coordinator validates the run, scenario, role, and exact contract revision from all three completion
+artifacts before atomically publishing three role-bound `*.result.json.stop.json` signals. This keeps
+the dedicated server alive until both clients have completed their own real network assertions and
+prevents one successful role from tearing down another role's unfinished test.
 
 Each role publishes schema version `2`, the exact run/scenario/role identity, a lowercase status,
 named milestones, a state revision, compact `sharedFacts`, asymmetric `roleEvidence`, ordered
 role-owned `assertions`, an optional failure, and its log path. Process ID, role, provenance, and the
 milestone-derived transition trace are supplied by the harness rather than the scenario.
 
-The runner treats a published result as provisional until its Player exits naturally with code zero.
-It then compares revisions and shared facts across roles. Built-in scenarios also have a separate
-coordinator-owned contract in `Tools~/BuiltInScenarioContracts.json`; missing, extra, reordered, or
-incorrect facts, evidence, assertions, milestones, and revisions fail validation.
+`Session.Pass(revision)` remains provisional after the barrier. Once its valid stop signal arrives,
+the role stops its active PurrNet client/server, waits for both connection states to become
+disconnected, and invokes the optional project post-stop hook.
+Only then does it atomically publish a passing result. A shutdown, disconnect, or hook failure revokes
+the requested pass. The coordinator still treats that final result as provisional until the Player
+exits naturally with code zero.
+
+The coordinator compares revisions and shared facts across roles and requires three distinct process
+IDs. Built-in scenarios use the package-owned contracts in `Tools~/BuiltInScenarioContracts.json`.
+Project scenarios use contracts embedded from `ProjectSettings/PurrNetNetworkTests.json` into the
+SHA-256-bound Player execution manifest. In both cases, missing, extra, reordered, or incorrect facts,
+evidence, assertions, milestones, and revisions fail validation.
 
 Any timeout, early or non-zero process exit, malformed JSON, failed role, revision mismatch, fact
 mismatch, contract mismatch, or stale Player fingerprint is a failed run. The run directory and all
@@ -39,10 +53,12 @@ their ready/result artifacts. It is a human diagnostic surface and is not requir
 ## Scenario discovery
 
 Create a concrete `NetworkTestScenario`, annotate it with one stable
-`[NetworkTestScenario("Feature.Scenario")]` ID, and keep setup code-driven. The build method discovers
-the type, creates a temporary network prefab in the staging project, registers it with PurrNet, and
-includes it in the test Player. Generated assets live only in the exact
-`Assets/PurrNetNetworkTestGenerated` folder and are removed after the build.
+`[NetworkTestScenario("Feature.Scenario")]` ID, and register it with an exact contract in
+`ProjectSettings/PurrNetNetworkTests.json`. A `typeName` entry creates a temporary generated network
+prefab; a `prefabPath` entry includes one authored prefab whose root owns the only scenario component.
+Generated assets live only in the exact `Assets/PurrNetNetworkTestGenerated` folder and are removed
+after the build. See [portable project integration](project-integration.md) for the manifest schema and
+the constrained project bootstrap/provider/hook envelope.
 
 Use the scenario's normal PurrNet request path. Client intent belongs in a `ServerRpc`; the server must
 derive identity from `RPCInfo.sender`, validate before mutation, and expose state through real

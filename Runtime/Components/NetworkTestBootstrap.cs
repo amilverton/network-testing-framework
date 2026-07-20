@@ -10,6 +10,15 @@ using UnityEngine;
 namespace Amilverton.PurrNetTesting
 {
     /// <summary>
+    /// Selects whether the Player creates its own minimal network root or preserves an authored root.
+    /// </summary>
+    public enum NetworkTestNetworkRootMode : byte
+    {
+        GeneratedFallback,
+        ProjectAuthored
+    }
+
+    /// <summary>
     /// Starts one standalone network role and owns its result-file lifecycle.
     /// </summary>
     public sealed class NetworkTestBootstrap : MonoBehaviour
@@ -17,8 +26,7 @@ namespace Amilverton.PurrNetTesting
         private const int SchemaVersion = 2;
 
         [SerializeField] private GameObject networkRoot;
-        private NetworkManager networkManager;
-        private UDPTransport udpTransport;
+        [SerializeField] private NetworkTestNetworkRootMode networkRootMode;
         [SerializeField] private NetworkTestScenarioRegistration[] scenarioRegistrations =
             Array.Empty<NetworkTestScenarioRegistration>();
 
@@ -31,10 +39,22 @@ namespace Amilverton.PurrNetTesting
         private NetworkTestArguments _arguments;
         private NetworkTestConfiguration _configuration;
         private NetworkTestScenarioRegistration _selectedScenario;
+        private NetworkManager _networkManager;
+        private UDPTransport _udpTransport;
+        private NetworkTestBootstrapHook _bootstrapHook;
+        private NetworkRules _authoredRules;
         private float _startedAt;
         private bool _initialized;
         private bool _readyPublished;
+        private bool _completionRequested;
+        private bool _stopping;
         private bool _finished;
+        private bool _preStartHookInvoked;
+        private bool _postStopHookInvoked;
+        private bool _applicationLogSubscribed;
+        private string _preStartHookFailure;
+        private string _postStopHookFailure;
+        private int _pendingStateRevision;
         private int _exitCode;
         private NetworkTestReport _publishedReport;
 
@@ -51,12 +71,29 @@ namespace Amilverton.PurrNetTesting
             GameObject configuredNetworkRoot,
             NetworkTestScenarioRegistration[] configuredScenarios)
         {
+            ConfigureForBuild(
+                configuredNetworkRoot,
+                configuredScenarios,
+                NetworkTestNetworkRootMode.GeneratedFallback);
+        }
+
+        /// <summary>
+        /// Assign build assets and identify whether the network root is project-authored.
+        /// </summary>
+        public void ConfigureForBuild(
+            GameObject configuredNetworkRoot,
+            NetworkTestScenarioRegistration[] configuredScenarios,
+            NetworkTestNetworkRootMode configuredNetworkRootMode)
+        {
             networkRoot = configuredNetworkRoot;
             scenarioRegistrations = configuredScenarios ?? Array.Empty<NetworkTestScenarioRegistration>();
+            networkRootMode = configuredNetworkRootMode;
         }
 
         private void Awake()
         {
+            SubscribeToApplicationLogs();
+
             if (Current != null && Current != this)
             {
                 Debug.LogError("[Awake] More than one NetworkTestBootstrap exists in the Player.");
@@ -66,25 +103,19 @@ namespace Amilverton.PurrNetTesting
 
             Current = this;
             Application.runInBackground = true;
-            Application.logMessageReceived += HandleLogMessage;
 
-            if (networkRoot == null)
+            NetworkTestNetworkRootConfigurationResult networkRootResult =
+                NetworkTestNetworkRootConfigurator.TryConfigure(networkRoot, networkRootMode);
+            if (!networkRootResult.Succeeded)
             {
-                QuitWithoutReport("[Awake] Inactive PurrNet network root is not configured in the bootstrap scene.");
+                QuitWithoutReport($"[Awake] {networkRootResult.Failure}");
                 return;
             }
 
-            if (networkRoot.activeSelf)
-            {
-                QuitWithoutReport("[Awake] PurrNet network root must remain inactive until runtime rules are configured.");
-                return;
-            }
-
-            udpTransport = networkRoot.AddComponent<UDPTransport>();
-            networkManager = networkRoot.AddComponent<NetworkManager>();
-            networkManager.startServerFlags = (StartFlags)0;
-            networkManager.startClientFlags = (StartFlags)0;
-            networkManager.transport = udpTransport;
+            _networkManager = networkRootResult.NetworkManager;
+            _udpTransport = networkRootResult.UdpTransport;
+            _bootstrapHook = networkRootResult.Hook;
+            _authoredRules = networkRootResult.AuthoredRules;
 
             NetworkTestArgumentsParseResult parseResult = NetworkTestArguments.Parse(Environment.GetCommandLineArgs());
             if (!parseResult.Succeeded)
@@ -112,28 +143,64 @@ namespace Amilverton.PurrNetTesting
                 return;
             }
 
-            networkManager.SetPrefabProvider(new NetworkTestPrefabProvider(scenarioRegistrations));
-            if (networkManager.prefabProvider == null)
+            _udpTransport.address = _configuration.Address;
+            _udpTransport.serverPort = (ushort)_configuration.Port;
+
+            try
             {
-                Fail("PurrNet did not accept the generated scenario prefab provider.");
+                networkRoot.SetActive(true);
+            }
+            catch (Exception exception)
+            {
+                Fail($"PurrNet network root failed during activation: {exception.Message}");
                 return;
             }
 
-            if (!PurrNetNetworkManagerConfigurator.TryApplyDefaultRules(networkManager, out string rulesFailure))
-            {
-                Fail(rulesFailure);
+            if (_finished)
                 return;
-            }
 
-            udpTransport.address = _configuration.Address;
-            udpTransport.serverPort = (ushort)_configuration.Port;
-            networkRoot.SetActive(true);
-
-            if (networkManager.networkRules == null)
+            if (_networkManager.networkRules == null)
             {
                 Fail("PurrNet NetworkManager activated without runtime NetworkRules.");
                 return;
             }
+
+            if (networkRootMode == NetworkTestNetworkRootMode.ProjectAuthored &&
+                _networkManager.networkRules != _authoredRules)
+            {
+                Fail("PurrNet replaced the project-authored serialized NetworkRules during activation.");
+                return;
+            }
+
+            if (NetworkManager.main != _networkManager)
+            {
+                Fail("PurrNet did not retain the configured NetworkManager as NetworkManager.main.");
+                return;
+            }
+
+            if (networkRootMode == NetworkTestNetworkRootMode.ProjectAuthored &&
+                _networkManager.prefabProvider == null)
+            {
+                Fail("PurrNet did not initialize the project-authored prefab provider.");
+                return;
+            }
+
+            NetworkTestPrefabProvider scenarioProvider =
+                new NetworkTestPrefabProvider(scenarioRegistrations);
+            bool includeProjectProvider =
+                networkRootMode == NetworkTestNetworkRootMode.ProjectAuthored;
+            if (!PurrNetNetworkManagerConfigurator.TryConfigurePrefabProvider(
+                    _networkManager,
+                    scenarioProvider,
+                    includeProjectProvider,
+                    out string providerFailure))
+            {
+                Fail(providerFailure);
+                return;
+            }
+
+            if (_finished)
+                return;
 
             _startedAt = Time.realtimeSinceStartup;
             _initialized = true;
@@ -146,6 +213,12 @@ namespace Amilverton.PurrNetTesting
 
             StartCoroutine(WatchTimeout());
 
+            if (!TryInvokePreNetworkStartHook(out string hookFailure))
+            {
+                Fail(hookFailure);
+                yield break;
+            }
+
             if (Role == NetworkTestRole.Server)
             {
                 yield return StartServer();
@@ -157,9 +230,9 @@ namespace Amilverton.PurrNetTesting
 
         private IEnumerator StartServer()
         {
-            networkManager.StartServer();
+            _networkManager.StartServer();
 
-            while (!_finished && networkManager.serverState != ConnectionState.Connected)
+            while (!_finished && _networkManager.serverState != ConnectionState.Connected)
                 yield return null;
 
             if (_finished)
@@ -178,9 +251,9 @@ namespace Amilverton.PurrNetTesting
 
         private IEnumerator StartClient()
         {
-            networkManager.StartClient();
+            _networkManager.StartClient();
 
-            while (!_finished && networkManager.clientState != ConnectionState.Connected)
+            while (!_finished && _networkManager.clientState != ConnectionState.Connected)
                 yield return null;
 
             if (_finished)
@@ -316,10 +389,17 @@ namespace Amilverton.PurrNetTesting
         }
 
         /// <summary>
-        /// Publish a passing result after all role-owned assertions have completed.
+        /// Request passing completion after all role-owned assertions have completed.
+        /// The final result is published only after network shutdown and project cleanup.
         /// </summary>
         public void Pass(int stateRevision)
         {
+            if (_completionRequested || _finished)
+            {
+                Fail($"Pass was requested more than once by role '{Role}'.");
+                return;
+            }
+
             if (!_readyPublished)
             {
                 Fail("A scenario cannot pass before it publishes role readiness.");
@@ -338,7 +418,11 @@ namespace Amilverton.PurrNetTesting
                 return;
             }
 
-            Complete("passed", stateRevision, null, 0);
+            _completionRequested = true;
+            _pendingStateRevision = stateRevision;
+
+            if (isActiveAndEnabled)
+                StartCoroutine(FinalizePassingRun());
         }
 
         /// <summary>
@@ -358,7 +442,247 @@ namespace Amilverton.PurrNetTesting
                 return;
             }
 
-            Complete("failed", -1, actionableFailure, 1);
+            PublishFinalResult("failed", -1, actionableFailure, 1);
+        }
+
+        private IEnumerator FinalizePassingRun()
+        {
+            if (_finished || _stopping)
+                yield break;
+
+            _stopping = true;
+
+            if (!TryPublishCompletion(out string completionFailure))
+            {
+                Fail(completionFailure);
+                yield break;
+            }
+
+            while (!_finished)
+            {
+                if (!TryReadStopSignal(out bool stopRequested, out string signalFailure))
+                {
+                    Fail(signalFailure);
+                    yield break;
+                }
+
+                if (stopRequested)
+                    break;
+
+                if (!HasTimeRemaining())
+                {
+                    Fail(
+                        $"Scenario '{ScenarioId}' timed out waiting for the coordinator's " +
+                        "three-role shutdown barrier.");
+                    yield break;
+                }
+
+                yield return null;
+            }
+
+            if (_finished)
+                yield break;
+
+            if (!TryStopActiveNetwork(out string stopFailure))
+            {
+                Fail(stopFailure);
+                yield break;
+            }
+
+            while (!_finished && !IsNetworkDisconnected())
+            {
+                if (!HasTimeRemaining())
+                {
+                    Fail(
+                        $"Scenario '{ScenarioId}' timed out while stopping PurrNet within the " +
+                        $"{_configuration.TimeoutSeconds}-second global deadline.");
+                    yield break;
+                }
+
+                yield return null;
+            }
+
+            if (_finished)
+                yield break;
+
+            if (!TryInvokePostNetworkStopHook(out string hookFailure))
+            {
+                Fail(hookFailure);
+                yield break;
+            }
+
+            _stopping = false;
+            PublishFinalResult("passed", _pendingStateRevision, null, 0);
+        }
+
+        private bool TryPublishCompletion(out string failure)
+        {
+            NetworkTestCompletionReport completion = new NetworkTestCompletionReport
+            {
+                SchemaVersion = SchemaVersion,
+                RunId = RunId,
+                ScenarioId = ScenarioId,
+                Role = Role.ToString(),
+                StateRevision = _pendingStateRevision
+            };
+            NetworkTestWriteResult result = _resultWriter.Write(
+                GetCompletionPath(),
+                completion);
+            if (!result.Succeeded)
+            {
+                failure = result.Failure;
+                return false;
+            }
+
+            Debug.Log($"[Harness:{Role}] Reached the coordinated shutdown barrier.");
+            failure = null;
+            return true;
+        }
+
+        private bool TryReadStopSignal(out bool stopRequested, out string failure)
+        {
+            stopRequested = false;
+            failure = null;
+            string signalPath = GetStopSignalPath();
+            if (!File.Exists(signalPath))
+                return true;
+
+            try
+            {
+                NetworkTestStopSignal signal =
+                    JsonConvert.DeserializeObject<NetworkTestStopSignal>(File.ReadAllText(signalPath));
+                if (signal == null ||
+                    signal.SchemaVersion != SchemaVersion ||
+                    !string.Equals(signal.RunId, RunId, StringComparison.Ordinal) ||
+                    !string.Equals(signal.ScenarioId, ScenarioId, StringComparison.Ordinal) ||
+                    !string.Equals(signal.Role, Role.ToString(), StringComparison.Ordinal))
+                {
+                    failure =
+                        $"Coordinator stop signal '{signalPath}' does not match this run, scenario, and role.";
+                    return false;
+                }
+
+                stopRequested = true;
+                return true;
+            }
+            catch (Exception exception)
+            {
+                failure = $"Failed to read coordinator stop signal '{signalPath}': {exception.Message}";
+                return false;
+            }
+        }
+
+        private string GetCompletionPath()
+        {
+            return _arguments.ResultPath + ".complete.json";
+        }
+
+        private string GetStopSignalPath()
+        {
+            return _arguments.ResultPath + ".stop.json";
+        }
+
+        private bool TryStopActiveNetwork(out string failure)
+        {
+            if (_networkManager == null)
+            {
+                failure = "Cannot stop a missing PurrNet NetworkManager.";
+                return false;
+            }
+
+            try
+            {
+                if (_networkManager.clientState != ConnectionState.Disconnected)
+                    _networkManager.StopClient();
+
+                if (_networkManager.serverState != ConnectionState.Disconnected)
+                    _networkManager.StopServer();
+            }
+            catch (Exception exception)
+            {
+                failure = $"PurrNet network shutdown failed: {exception.Message}";
+                return false;
+            }
+
+            failure = null;
+            return true;
+        }
+
+        private bool IsNetworkDisconnected()
+        {
+            return _networkManager != null &&
+                   _networkManager.clientState == ConnectionState.Disconnected &&
+                   _networkManager.serverState == ConnectionState.Disconnected;
+        }
+
+        private bool HasTimeRemaining()
+        {
+            if (_configuration == null)
+                return false;
+
+            return Time.realtimeSinceStartup - _startedAt < _configuration.TimeoutSeconds;
+        }
+
+        internal bool TryInvokePreNetworkStartHook(out string failure)
+        {
+            if (_preStartHookInvoked)
+            {
+                failure = _preStartHookFailure;
+                return failure == null;
+            }
+
+            _preStartHookInvoked = true;
+            if (_bootstrapHook == null)
+            {
+                failure = null;
+                return true;
+            }
+
+            try
+            {
+                _bootstrapHook.OnPreNetworkStart(this, _networkManager);
+                failure = null;
+                return true;
+            }
+            catch (Exception exception)
+            {
+                _preStartHookFailure =
+                    $"NetworkTestBootstrapHook '{_bootstrapHook.GetType().FullName}' failed before " +
+                    $"network start: {exception.Message}";
+                failure = _preStartHookFailure;
+                return false;
+            }
+        }
+
+        internal bool TryInvokePostNetworkStopHook(out string failure)
+        {
+            if (_postStopHookInvoked)
+            {
+                failure = _postStopHookFailure;
+                return failure == null;
+            }
+
+            _postStopHookInvoked = true;
+            if (_bootstrapHook == null)
+            {
+                failure = null;
+                return true;
+            }
+
+            try
+            {
+                _bootstrapHook.OnPostNetworkStop(this, _networkManager);
+                failure = null;
+                return true;
+            }
+            catch (Exception exception)
+            {
+                _postStopHookFailure =
+                    $"NetworkTestBootstrapHook '{_bootstrapHook.GetType().FullName}' failed after " +
+                    $"network stop: {exception.Message}";
+                failure = _postStopHookFailure;
+                return false;
+            }
         }
 
         private void RevokePublishedPass(string failure)
@@ -402,7 +726,7 @@ namespace Amilverton.PurrNetTesting
             Debug.Log($"[Harness:{Role}] Role evidence: {key}={value}");
         }
 
-        private void Complete(string status, int stateRevision, string failure, int exitCode)
+        private void PublishFinalResult(string status, int stateRevision, string failure, int exitCode)
         {
             if (_finished)
                 return;
@@ -412,7 +736,7 @@ namespace Amilverton.PurrNetTesting
 
             if (_arguments == null)
             {
-                StartCoroutine(QuitAfterDelay());
+                StartCoroutine(QuitAfterLateFailureWindow());
                 return;
             }
 
@@ -443,15 +767,15 @@ namespace Amilverton.PurrNetTesting
             NetworkTestWriteResult writeResult = _resultWriter.Write(_arguments.ResultPath, report);
             if (!writeResult.Succeeded)
             {
-                Debug.LogError($"[Complete] {writeResult.Failure}");
+                Debug.LogError($"[PublishFinalResult] {writeResult.Failure}");
                 _exitCode = 2;
             }
 
             Debug.Log($"[Harness:{Role}] Result published: {status}, revision={stateRevision}, assertions={_assertions.Count}.");
-            StartCoroutine(QuitAfterDelay());
+            StartCoroutine(QuitAfterLateFailureWindow());
         }
 
-        private IEnumerator QuitAfterDelay()
+        private IEnumerator QuitAfterLateFailureWindow()
         {
             yield return new WaitForSecondsRealtime(0.75f);
             Application.Quit(_exitCode);
@@ -566,12 +890,40 @@ namespace Amilverton.PurrNetTesting
             _finished = true;
             Debug.LogError(failure);
             _exitCode = 2;
-            StartCoroutine(QuitAfterDelay());
+            StartCoroutine(QuitAfterLateFailureWindow());
+        }
+
+        private void OnEnable()
+        {
+            SubscribeToApplicationLogs();
+        }
+
+        private void OnDisable()
+        {
+            UnsubscribeFromApplicationLogs();
+        }
+
+        private void SubscribeToApplicationLogs()
+        {
+            if (_applicationLogSubscribed)
+                return;
+
+            Application.logMessageReceived += HandleLogMessage;
+            _applicationLogSubscribed = true;
+        }
+
+        private void UnsubscribeFromApplicationLogs()
+        {
+            if (!_applicationLogSubscribed)
+                return;
+
+            Application.logMessageReceived -= HandleLogMessage;
+            _applicationLogSubscribed = false;
         }
 
         private void OnDestroy()
         {
-            Application.logMessageReceived -= HandleLogMessage;
+            UnsubscribeFromApplicationLogs();
 
             if (Current == this)
                 Current = null;

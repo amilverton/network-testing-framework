@@ -14,6 +14,9 @@ param(
     [ValidateRange(5, 600)]
     [int]$TimeoutSeconds = 45,
 
+    [ValidateRange(5, 1800)]
+    [int]$BuildTimeoutSeconds = 600,
+
     [switch]$ReusePlayer,
 
     [switch]$BuildInPlace,
@@ -25,6 +28,13 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+
+$localPackageStagingPath = Join-Path $PSScriptRoot 'Stage-UnityLocalPackages.ps1'
+if (-not (Test-Path -LiteralPath $localPackageStagingPath -PathType Leaf)) {
+    throw "Local package staging helper '$localPackageStagingPath' does not exist."
+}
+
+. $localPackageStagingPath
 
 function Get-AbsolutePath {
     param([Parameter(Mandatory = $true)][string]$Path)
@@ -64,6 +74,30 @@ function Resolve-UnityEditorPath {
     }
 
     return $candidate
+}
+
+function Start-HiddenProcess {
+    param(
+        [Parameter(Mandatory = $true)][string]$FilePath,
+        [Parameter(Mandatory = $true)][string[]]$Arguments
+    )
+
+    $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
+    $startInfo.FileName = $FilePath
+    $startInfo.UseShellExecute = $false
+    $startInfo.CreateNoWindow = $true
+    foreach ($argument in $Arguments) {
+        $startInfo.ArgumentList.Add($argument)
+    }
+
+    $process = [System.Diagnostics.Process]::new()
+    $process.StartInfo = $startInfo
+    if (-not $process.Start()) {
+        $process.Dispose()
+        throw "Could not start process '$FilePath'."
+    }
+
+    return $process
 }
 
 function Assert-ProjectIsNotOpen {
@@ -130,7 +164,8 @@ function Invoke-NetworkTestPlayerBuild {
         [Parameter(Mandatory = $true)][string]$ResolvedUnityPath,
         [Parameter(Mandatory = $true)][string]$BuildProjectPath,
         [Parameter(Mandatory = $true)][string]$ResolvedPlayerPath,
-        [Parameter(Mandatory = $true)][string]$BuildLogPath
+        [Parameter(Mandatory = $true)][string]$BuildLogPath,
+        [Parameter(Mandatory = $true)][int]$BuildTimeoutSeconds
     )
 
     $playerDirectory = Split-Path -Parent $ResolvedPlayerPath
@@ -144,7 +179,7 @@ function Invoke-NetworkTestPlayerBuild {
             }
 
             $existingReceipt = Get-Content -LiteralPath $buildReceiptPath -Raw | ConvertFrom-Json
-            if ($existingReceipt.SchemaVersion -ne 1) {
+            if ($existingReceipt.SchemaVersion -notin @(1, 2)) {
                 throw "Refusing to clean Player directory '$playerDirectory' because its harness build receipt has unsupported schema version '$($existingReceipt.SchemaVersion)'."
             }
 
@@ -163,20 +198,32 @@ function Invoke-NetworkTestPlayerBuild {
     $unityArgumentParts = @(
         '-batchmode',
         '-quit',
-        '-projectPath', (ConvertTo-QuotedProcessArgument -Value $BuildProjectPath),
+        '-projectPath', $BuildProjectPath,
         '-buildTarget', 'StandaloneWindows64',
         '-executeMethod', 'Amilverton.PurrNetTesting.Editor.NetworkTestPlayerBuilder.BuildFromCommandLine',
-        '-networkTestBuildPath', (ConvertTo-QuotedProcessArgument -Value $ResolvedPlayerPath),
-        '-logFile', (ConvertTo-QuotedProcessArgument -Value $BuildLogPath)
+        '-networkTestBuildPath', $ResolvedPlayerPath,
+        '-logFile', $BuildLogPath
     )
 
-    $unityProcess = Start-Process `
-        -FilePath $ResolvedUnityPath `
-        -ArgumentList ($unityArgumentParts -join ' ') `
-        -PassThru `
-        -WindowStyle Hidden
-    $unityProcess.WaitForExit()
-    $unityExitCode = $unityProcess.ExitCode
+    $unityProcess = Start-HiddenProcess -FilePath $ResolvedUnityPath -Arguments $unityArgumentParts
+    try {
+        if (-not $unityProcess.WaitForExit($BuildTimeoutSeconds * 1000)) {
+            throw "Unity Player build exceeded its $BuildTimeoutSeconds second deadline. See '$BuildLogPath'."
+        }
+
+        $unityExitCode = $unityProcess.ExitCode
+    }
+    finally {
+        if (-not $unityProcess.HasExited) {
+            $unityProcess.Kill($true)
+            if (-not $unityProcess.WaitForExit(10000)) {
+                Write-Warning "Unity build process tree $($unityProcess.Id) did not exit within 10 seconds after termination."
+            }
+        }
+
+        $unityProcess.Dispose()
+    }
+
     if ($unityExitCode -ne 0) {
         throw "Unity Player build failed with exit code $unityExitCode. See '$BuildLogPath'."
     }
@@ -208,13 +255,122 @@ function Write-JsonFile {
     )
 
     $json = $Value | ConvertTo-Json -Depth 12
-    [System.IO.File]::WriteAllText($Path, $json, [System.Text.UTF8Encoding]::new($false))
+    $temporaryPath = $Path + '.tmp-' + [System.Guid]::NewGuid().ToString('N')
+    try {
+        [System.IO.File]::WriteAllText(
+            $temporaryPath,
+            $json,
+            [System.Text.UTF8Encoding]::new($false))
+        [System.IO.File]::Move($temporaryPath, $Path)
+    }
+    finally {
+        if (Test-Path -LiteralPath $temporaryPath -PathType Leaf) {
+            Remove-Item -LiteralPath $temporaryPath -Force
+        }
+    }
 }
 
-function ConvertTo-QuotedProcessArgument {
-    param([Parameter(Mandatory = $true)][string]$Value)
+function Get-LabeledInputFingerprint {
+    param([Parameter(Mandatory = $true)][object[]]$Inputs)
 
-    return '"' + $Value.Replace('"', '\"') + '"'
+    $inputsByLabel = [System.Collections.Generic.Dictionary[string, object]]::new(
+        [System.StringComparer]::Ordinal)
+    foreach ($input in $Inputs) {
+        $label = [string]$input.Label
+        if (-not $inputsByLabel.TryAdd($label, $input)) {
+            throw "Fingerprint input label '$label' is duplicated."
+        }
+    }
+
+    $labels = [string[]]@($inputsByLabel.Keys)
+    [System.Array]::Sort($labels, [System.StringComparer]::Ordinal)
+    $incrementalHash = [System.Security.Cryptography.IncrementalHash]::CreateHash(
+        [System.Security.Cryptography.HashAlgorithmName]::SHA256)
+    try {
+        foreach ($label in $labels) {
+            Add-LabeledFileToIncrementalHash `
+                -Hash $incrementalHash `
+                -Label $label `
+                -Path ([string]$inputsByLabel[$label].Path)
+        }
+
+        return [System.Convert]::ToHexString($incrementalHash.GetHashAndReset()).ToLowerInvariant()
+    }
+    finally {
+        $incrementalHash.Dispose()
+    }
+}
+
+function Get-NetworkTestProjectSnapshotFingerprint {
+    param([Parameter(Mandatory = $true)][string]$ProjectPath)
+
+    $inputs = [System.Collections.Generic.List[object]]::new()
+    $assetsPath = Join-Path $ProjectPath 'Assets'
+    if (Test-Path -LiteralPath $assetsPath -PathType Container) {
+        Get-ChildItem -LiteralPath $assetsPath -Recurse -File |
+            Where-Object {
+                $relativeAssetPath = [System.IO.Path]::GetRelativePath($assetsPath, $_.FullName).Replace('\', '/')
+                -not $relativeAssetPath.StartsWith(
+                    'PurrNetNetworkTestGenerated/',
+                    [System.StringComparison]::OrdinalIgnoreCase)
+            } |
+            ForEach-Object {
+                $relative = [System.IO.Path]::GetRelativePath($ProjectPath, $_.FullName).Replace('\', '/')
+                $inputs.Add([pscustomobject]@{ Label = $relative; Path = $_.FullName })
+            }
+    }
+
+    foreach ($relativePath in @('Packages\manifest.json', 'Packages\packages-lock.json')) {
+        $absolutePath = Join-Path $ProjectPath $relativePath
+        if (Test-Path -LiteralPath $absolutePath -PathType Leaf) {
+            $inputs.Add([pscustomobject]@{
+                Label = $relativePath.Replace('\', '/')
+                Path = $absolutePath
+            })
+        }
+    }
+
+    $projectSettingsPath = Join-Path $ProjectPath 'ProjectSettings'
+    if (Test-Path -LiteralPath $projectSettingsPath -PathType Container) {
+        Get-ChildItem -LiteralPath $projectSettingsPath -Recurse -File | ForEach-Object {
+            $relative = [System.IO.Path]::GetRelativePath($ProjectPath, $_.FullName).Replace('\', '/')
+            $inputs.Add([pscustomobject]@{ Label = $relative; Path = $_.FullName })
+        }
+    }
+
+    return Get-LabeledInputFingerprint -Inputs $inputs.ToArray()
+}
+
+function Assert-LocalPackageSpecsMatch {
+    param(
+        [Parameter(Mandatory = $true)][object[]]$StagedSpecs,
+        [Parameter(Mandatory = $true)][object[]]$CurrentSourceSpecs
+    )
+
+    $currentByName = [System.Collections.Generic.Dictionary[string, object]]::new(
+        [System.StringComparer]::Ordinal)
+    foreach ($spec in $CurrentSourceSpecs) {
+        if (-not $currentByName.TryAdd([string]$spec.DependencyName, $spec)) {
+            throw "Current local-package spec '$($spec.DependencyName)' is duplicated."
+        }
+    }
+
+    if ($StagedSpecs.Count -ne $currentByName.Count) {
+        throw "Local-package dependency membership changed while staging; staged $($StagedSpecs.Count) package(s) but source now declares $($currentByName.Count)."
+    }
+
+    foreach ($stagedSpec in $StagedSpecs) {
+        $dependencyName = [string]$stagedSpec.DependencyName
+        if (-not $currentByName.ContainsKey($dependencyName)) {
+            throw "Local-package dependency '$dependencyName' was removed or renamed while staging."
+        }
+
+        $currentSpec = $currentByName[$dependencyName]
+        if ([string]$stagedSpec.SourceVersion -cne [string]$currentSpec.SourceVersion -or
+            [string]$stagedSpec.Digest -cne [string]$currentSpec.Digest) {
+            throw "Local-package dependency '$dependencyName' changed while it was being staged; refusing to build an unbound snapshot."
+        }
+    }
 }
 
 function Get-NetworkTestInputFingerprint {
@@ -247,7 +403,12 @@ function Get-NetworkTestInputFingerprint {
     $assetsPath = Join-Path $ResolvedProjectPath 'Assets'
     if (Test-Path -LiteralPath $assetsPath -PathType Container) {
         Get-ChildItem -LiteralPath $assetsPath -Recurse -File |
-            Where-Object { $_.Extension -in @('.cs', '.asmdef', '.asmref', '.meta') } |
+            Where-Object {
+                $relativeAssetPath = [System.IO.Path]::GetRelativePath($assetsPath, $_.FullName).Replace('\', '/')
+                -not $relativeAssetPath.StartsWith(
+                    'PurrNetNetworkTestGenerated/',
+                    [System.StringComparison]::OrdinalIgnoreCase)
+            } |
             ForEach-Object {
                 $relative = [System.IO.Path]::GetRelativePath($ResolvedProjectPath, $_.FullName).Replace('\', '/')
                 $inputs.Add([pscustomobject]@{ Label = "project/$relative"; Path = $_.FullName })
@@ -304,7 +465,7 @@ function Get-NetworkTestInputFingerprint {
 
                 $excludedPackageDirectories = @(
                     '.git', '.svn', '.hg', '.vs', '.idea',
-                    'Library', 'Temp', 'Logs', 'obj', 'bin', 'Artifacts'
+                    'Library', 'Temp', 'tmp', 'Logs', 'obj', 'bin', 'Artifacts'
                 )
                 $packageDirectories = [System.Collections.Generic.Stack[System.IO.DirectoryInfo]]::new()
                 $packageDirectories.Push([System.IO.DirectoryInfo]::new($localPath))
@@ -338,20 +499,7 @@ function Get-NetworkTestInputFingerprint {
         }
     }
 
-    $incrementalHash = [System.Security.Cryptography.IncrementalHash]::CreateHash(
-        [System.Security.Cryptography.HashAlgorithmName]::SHA256)
-    try {
-        foreach ($input in ($inputs | Sort-Object -Property Label -Unique)) {
-            $labelBytes = [System.Text.Encoding]::UTF8.GetBytes([string]$input.Label + "`n")
-            $incrementalHash.AppendData($labelBytes)
-            $incrementalHash.AppendData([System.IO.File]::ReadAllBytes([string]$input.Path))
-        }
-
-        return [System.Convert]::ToHexString($incrementalHash.GetHashAndReset()).ToLowerInvariant()
-    }
-    finally {
-        $incrementalHash.Dispose()
-    }
+    return Get-LabeledInputFingerprint -Inputs $inputs.ToArray()
 }
 
 function Start-NetworkTestViewer {
@@ -370,14 +518,12 @@ function Start-NetworkTestViewer {
     $viewerArgumentParts = @(
         '-NoProfile',
         '-STA',
-        '-File', (ConvertTo-QuotedProcessArgument -Value $viewerPath),
-        '-RunPath', (ConvertTo-QuotedProcessArgument -Value $ResolvedRunPath)
+        '-File', $viewerPath,
+        '-RunPath', $ResolvedRunPath
     )
 
-    Start-Process `
-        -FilePath $pwshPath `
-        -ArgumentList ($viewerArgumentParts -join ' ') `
-        -WindowStyle Hidden | Out-Null
+    $viewerProcess = Start-HiddenProcess -FilePath $pwshPath -Arguments $viewerArgumentParts
+    $viewerProcess.Dispose()
 }
 
 function Start-NetworkTestRole {
@@ -395,18 +541,17 @@ function Start-NetworkTestRole {
     $argumentParts = @(
         '-batchmode',
         '-nographics',
-        '-logFile', (ConvertTo-QuotedProcessArgument -Value $LogPath),
-        '-networkTestRunId', (ConvertTo-QuotedProcessArgument -Value $RunId),
-        '-networkTestScenario', (ConvertTo-QuotedProcessArgument -Value $ScenarioId),
+        '-logFile', $LogPath,
+        '-networkTestRunId', $RunId,
+        '-networkTestScenario', $ScenarioId,
         '-networkTestRole', $Role,
-        '-networkTestConfig', (ConvertTo-QuotedProcessArgument -Value $ConfigurationPath),
-        '-networkTestReady', (ConvertTo-QuotedProcessArgument -Value $ReadyPath),
-        '-networkTestResult', (ConvertTo-QuotedProcessArgument -Value $ResultPath),
-        '-networkTestLog', (ConvertTo-QuotedProcessArgument -Value $LogPath)
+        '-networkTestConfig', $ConfigurationPath,
+        '-networkTestReady', $ReadyPath,
+        '-networkTestResult', $ResultPath,
+        '-networkTestLog', $LogPath
     )
 
-    $argumentString = $argumentParts -join ' '
-    return Start-Process -FilePath $ResolvedPlayerPath -ArgumentList $argumentString -PassThru -WindowStyle Hidden
+    return Start-HiddenProcess -FilePath $ResolvedPlayerPath -Arguments $argumentParts
 }
 
 function Wait-ForRoleArtifact {
@@ -473,21 +618,47 @@ function Read-ValidatedReadyReport {
     }
 
     $scenarioContractProperty = $ScenarioContracts.PSObject.Properties[$ExpectedScenario]
-    if ($ExpectedScenario.StartsWith('Harness.', [System.StringComparison]::Ordinal) -and
-        $null -eq $scenarioContractProperty) {
-        throw "Built-in scenario '$ExpectedScenario' has no coordinator-owned contract."
+    if ($null -eq $scenarioContractProperty) {
+        throw "Scenario '$ExpectedScenario' has no exact contract in the Player execution manifest."
     }
 
-    if ($null -ne $scenarioContractProperty) {
-        $roleContractProperty = $scenarioContractProperty.Value.roles.PSObject.Properties[$ExpectedRole]
-        if ($null -eq $roleContractProperty) {
-            throw "Built-in scenario contract '$ExpectedScenario' has no ready contract for role '$ExpectedRole'."
-        }
+    $roleContractProperty = $scenarioContractProperty.Value.roles.PSObject.Properties[$ExpectedRole]
+    if ($null -eq $roleContractProperty) {
+        throw "Scenario contract '$ExpectedScenario' has no ready contract for role '$ExpectedRole'."
+    }
 
-        Assert-ExactSequence `
-            -Actual $report.milestones `
-            -Expected $roleContractProperty.Value.readyMilestones `
-            -Description "Role '$ExpectedRole' ready milestones"
+    Assert-ExactSequence `
+        -Actual $report.milestones `
+        -Expected $roleContractProperty.Value.readyMilestones `
+        -Description "Role '$ExpectedRole' ready milestones"
+
+    return $report
+}
+
+function Read-ValidatedCompletionReport {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string]$ExpectedRunId,
+        [Parameter(Mandatory = $true)][string]$ExpectedScenario,
+        [Parameter(Mandatory = $true)][string]$ExpectedRole,
+        [Parameter(Mandatory = $true)]$ScenarioContracts
+    )
+
+    $report = Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json
+    if ($report.schemaVersion -ne 2 -or
+        $report.runId -cne $ExpectedRunId -or
+        $report.scenarioId -cne $ExpectedScenario -or
+        $report.role -cne $ExpectedRole) {
+        throw "Completion report '$Path' does not match run '$ExpectedRunId', scenario '$ExpectedScenario', role '$ExpectedRole'."
+    }
+
+    $scenarioContractProperty = $ScenarioContracts.PSObject.Properties[$ExpectedScenario]
+    if ($null -eq $scenarioContractProperty) {
+        throw "Scenario '$ExpectedScenario' has no exact contract in the Player execution manifest."
+    }
+
+    if ([int]$report.stateRevision -ne [int]$scenarioContractProperty.Value.stateRevision) {
+        throw "Role '$ExpectedRole' reached the shutdown barrier at revision '$($report.stateRevision)'; exact contract expects '$($scenarioContractProperty.Value.stateRevision)'."
     }
 
     return $report
@@ -556,13 +727,51 @@ function Assert-ExactSequence {
     }
 }
 
-function Read-BuiltInScenarioContracts {
-    $contractPath = Join-Path $PSScriptRoot 'BuiltInScenarioContracts.json'
-    if (-not (Test-Path -LiteralPath $contractPath -PathType Leaf)) {
-        throw "Built-in scenario contract file '$contractPath' does not exist."
+function Read-NetworkTestExecutionManifest {
+    param([Parameter(Mandatory = $true)][string]$ResolvedPlayerPath)
+
+    $receiptPath = $ResolvedPlayerPath + '.build.json'
+    if (-not (Test-Path -LiteralPath $receiptPath -PathType Leaf)) {
+        throw "Network test Player build receipt '$receiptPath' does not exist. Rebuild the Player."
     }
 
-    return Get-Content -LiteralPath $contractPath -Raw | ConvertFrom-Json
+    $receipt = Get-Content -LiteralPath $receiptPath -Raw | ConvertFrom-Json
+    if ($receipt.SchemaVersion -ne 2) {
+        throw "Network test Player build receipt '$receiptPath' has schema '$($receipt.SchemaVersion)'; schema 2 is required. Rebuild the Player."
+    }
+
+    $manifestPath = $ResolvedPlayerPath + '.manifest.json'
+    if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
+        throw "Network test execution manifest '$manifestPath' does not exist. Rebuild the Player."
+    }
+
+    $expectedManifestName = [System.IO.Path]::GetFileName($manifestPath)
+    if ($receipt.ExecutionManifestFileName -cne $expectedManifestName) {
+        throw "Build receipt names execution manifest '$($receipt.ExecutionManifestFileName)'; expected '$expectedManifestName'."
+    }
+
+    $actualManifestHash = (Get-FileHash -LiteralPath $manifestPath -Algorithm SHA256).Hash.ToLowerInvariant()
+    if ([string]$receipt.ExecutionManifestSha256 -cne $actualManifestHash) {
+        throw "Execution manifest '$manifestPath' does not match the SHA-256 recorded by the Player build. Rebuild the Player."
+    }
+
+    $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+    if ($manifest.schemaVersion -ne 1) {
+        throw "Execution manifest '$manifestPath' has unsupported schema version '$($manifest.schemaVersion)'."
+    }
+
+    if ($null -eq $manifest.scenarioContracts -or
+        @($manifest.scenarioContracts.PSObject.Properties).Count -eq 0) {
+        throw "Execution manifest '$manifestPath' contains no scenario contracts."
+    }
+
+    if ($null -eq $manifest.supportedEnvelope -or
+        $manifest.supportedEnvelope.transport -cne 'UDP' -or
+        $manifest.supportedEnvelope.buildTarget -cne 'StandaloneWindows64') {
+        throw "Execution manifest '$manifestPath' is outside the coordinator's UDP Windows v1 support envelope."
+    }
+
+    return $manifest
 }
 
 function Assert-FinalReports {
@@ -574,12 +783,11 @@ function Assert-FinalReports {
     )
 
     $scenarioContractProperty = $ScenarioContracts.PSObject.Properties[$ExpectedScenario]
-    if ($ExpectedScenario.StartsWith('Harness.', [System.StringComparison]::Ordinal) -and
-        $null -eq $scenarioContractProperty) {
-        throw "Built-in scenario '$ExpectedScenario' has no coordinator-owned contract."
+    if ($null -eq $scenarioContractProperty) {
+        throw "Scenario '$ExpectedScenario' has no exact contract in the Player execution manifest."
     }
 
-    $scenarioContract = if ($null -eq $scenarioContractProperty) { $null } else { $scenarioContractProperty.Value }
+    $scenarioContract = $scenarioContractProperty.Value
     $reports = [ordered]@{}
     foreach ($role in @('Server', 'OwnerClient', 'ObserverClient')) {
         $path = [string]$ReportPaths[$role]
@@ -623,45 +831,43 @@ function Assert-FinalReports {
             throw "Role '$role' must publish one or more unique assertions."
         }
 
-        if ($null -ne $scenarioContract) {
-            if ([int]$report.stateRevision -ne [int]$scenarioContract.stateRevision) {
-                throw "Role '$role' reported revision '$($report.stateRevision)'; built-in contract expects '$($scenarioContract.stateRevision)'."
-            }
-
-            Assert-ExactPrimitiveObject `
-                -Actual $report.sharedFacts `
-                -Expected $scenarioContract.sharedFacts `
-                -Description "Role '$role' shared facts"
-
-            $roleContractProperty = $scenarioContract.roles.PSObject.Properties[$role]
-            if ($null -eq $roleContractProperty) {
-                throw "Built-in scenario contract '$ExpectedScenario' has no role contract for '$role'."
-            }
-
-            $roleContract = $roleContractProperty.Value
-            $expectedEvidence = [ordered]@{
-                role = $role
-                processId = [int]$report.roleEvidence.processId
-                provenance = $expectedProvenance
-                transitionTrace = $expectedTrace
-            }
-            foreach ($property in $roleContract.evidence.PSObject.Properties) {
-                $expectedEvidence[$property.Name] = $property.Value
-            }
-
-            Assert-ExactPrimitiveObject `
-                -Actual $report.roleEvidence `
-                -Expected $expectedEvidence `
-                -Description "Role '$role' evidence"
-            Assert-ExactSequence `
-                -Actual $report.assertions `
-                -Expected $roleContract.assertions `
-                -Description "Role '$role' assertions"
-            Assert-ExactSequence `
-                -Actual $report.milestones `
-                -Expected $roleContract.milestones `
-                -Description "Role '$role' milestones"
+        if ([int]$report.stateRevision -ne [int]$scenarioContract.stateRevision) {
+            throw "Role '$role' reported revision '$($report.stateRevision)'; exact contract expects '$($scenarioContract.stateRevision)'."
         }
+
+        Assert-ExactPrimitiveObject `
+            -Actual $report.sharedFacts `
+            -Expected $scenarioContract.sharedFacts `
+            -Description "Role '$role' shared facts"
+
+        $roleContractProperty = $scenarioContract.roles.PSObject.Properties[$role]
+        if ($null -eq $roleContractProperty) {
+            throw "Scenario contract '$ExpectedScenario' has no role contract for '$role'."
+        }
+
+        $roleContract = $roleContractProperty.Value
+        $expectedEvidence = [ordered]@{
+            role = $role
+            processId = [int]$report.roleEvidence.processId
+            provenance = $expectedProvenance
+            transitionTrace = $expectedTrace
+        }
+        foreach ($property in $roleContract.evidence.PSObject.Properties) {
+            $expectedEvidence[$property.Name] = $property.Value
+        }
+
+        Assert-ExactPrimitiveObject `
+            -Actual $report.roleEvidence `
+            -Expected $expectedEvidence `
+            -Description "Role '$role' evidence"
+        Assert-ExactSequence `
+            -Actual $report.assertions `
+            -Expected $roleContract.assertions `
+            -Description "Role '$role' assertions"
+        Assert-ExactSequence `
+            -Actual $report.milestones `
+            -Expected $roleContract.milestones `
+            -Description "Role '$role' milestones"
 
         $reports[$role] = $report
     }
@@ -702,7 +908,10 @@ function Stop-NetworkTestProcesses {
 
         try {
             if (-not $process.HasExited) {
-                Stop-Process -Id $process.Id -Force
+                $process.Kill($true)
+                if (-not $process.WaitForExit(10000)) {
+                    Write-Warning "Network test process tree $($process.Id) did not exit within 10 seconds after termination."
+                }
             }
         }
         catch {
@@ -752,7 +961,6 @@ if ([string]::IsNullOrWhiteSpace($PlayerPath)) {
 }
 
 $resolvedPlayerPath = Get-AbsolutePath -Path $PlayerPath
-$scenarioContracts = Read-BuiltInScenarioContracts
 $harnessRootPath = Split-Path -Parent $PSScriptRoot
 $inputFingerprint = Get-NetworkTestInputFingerprint `
     -ResolvedProjectPath $resolvedProjectPath `
@@ -778,11 +986,32 @@ try {
         $resolvedUnityPath = Resolve-UnityEditorPath -ResolvedProjectPath $resolvedProjectPath -RequestedUnityPath $UnityPath
         $buildProjectPath = $resolvedProjectPath
 
+        if (Test-Path -LiteralPath $fingerprintPath -PathType Leaf) {
+            Remove-Item -LiteralPath $fingerprintPath -Force
+        }
+
         if ($BuildInPlace) {
             Assert-ProjectIsNotOpen -ResolvedProjectPath $resolvedProjectPath
         }
         else {
             Copy-StagingProject -SourcePath $resolvedProjectPath -DestinationPath $stagingProjectPath -ResolvedArtifactsPath $resolvedArtifactsPath
+            $stagedProjectSnapshotFingerprint = Get-NetworkTestProjectSnapshotFingerprint `
+                -ProjectPath $stagingProjectPath
+            $stagedLocalPackageSpecs = @(Stage-UnityLocalPackages `
+                -SourceProjectPath $resolvedProjectPath `
+                -StagedProjectPath $stagingProjectPath)
+
+            $currentSourceSnapshotFingerprint = Get-NetworkTestProjectSnapshotFingerprint `
+                -ProjectPath $resolvedProjectPath
+            if ($stagedProjectSnapshotFingerprint -ne $currentSourceSnapshotFingerprint) {
+                throw "The staged Unity project snapshot does not match the current source project. Source files changed while they were copied; refusing to build an unbound Player."
+            }
+
+            $currentLocalPackageSpecs = @(Get-LocalPackageStagingSpecs `
+                -SourceProjectPath $resolvedProjectPath)
+            Assert-LocalPackageSpecsMatch `
+                -StagedSpecs $stagedLocalPackageSpecs `
+                -CurrentSourceSpecs $currentLocalPackageSpecs
             $buildProjectPath = $stagingProjectPath
         }
 
@@ -791,11 +1020,19 @@ try {
             -ResolvedUnityPath $resolvedUnityPath `
             -BuildProjectPath $buildProjectPath `
             -ResolvedPlayerPath $resolvedPlayerPath `
-            -BuildLogPath $buildLogPath
+            -BuildLogPath $buildLogPath `
+            -BuildTimeoutSeconds $BuildTimeoutSeconds
+
+        $postBuildInputFingerprint = Get-NetworkTestInputFingerprint `
+            -ResolvedProjectPath $resolvedProjectPath `
+            -HarnessRootPath $harnessRootPath
+        if ($postBuildInputFingerprint -ne $inputFingerprint) {
+            throw "Project network test inputs changed while the Player was being staged or built. The unbound Player was retained for diagnosis but cannot be reused; rebuild from stable inputs."
+        }
 
         [System.IO.File]::WriteAllText(
             $fingerprintPath,
-            $inputFingerprint,
+            $postBuildInputFingerprint,
             [System.Text.UTF8Encoding]::new($false))
     }
 
@@ -807,9 +1044,19 @@ try {
         throw "Network test Player fingerprint '$fingerprintPath' does not exist. Rebuild without -ReusePlayer."
     }
 
+    $currentInputFingerprint = Get-NetworkTestInputFingerprint `
+        -ResolvedProjectPath $resolvedProjectPath `
+        -HarnessRootPath $harnessRootPath
     $builtFingerprint = (Get-Content -LiteralPath $fingerprintPath -Raw).Trim()
-    if ($builtFingerprint -ne $inputFingerprint) {
+    if ($builtFingerprint -ne $currentInputFingerprint) {
         throw "Refusing to reuse stale network test Player. Source, dependencies, Unity version, or harness inputs changed; rebuild without -ReusePlayer."
+    }
+
+    $executionManifest = Read-NetworkTestExecutionManifest -ResolvedPlayerPath $resolvedPlayerPath
+    $scenarioContracts = $executionManifest.scenarioContracts
+    if ($null -eq $scenarioContracts.PSObject.Properties[$Scenario]) {
+        $availableScenarios = @($scenarioContracts.PSObject.Properties.Name | Sort-Object)
+        throw "Scenario '$Scenario' is not present in this Player build. Available scenarios: $([string]::Join(', ', $availableScenarios))."
     }
 
     $configurationPath = Join-Path $runPath 'config.json'
@@ -835,6 +1082,8 @@ try {
         $paths[$role] = [ordered]@{
             Ready = Join-Path $runPath "$filePrefix.ready.json"
             Result = Join-Path $runPath "$filePrefix.result.json"
+            Completion = Join-Path $runPath "$filePrefix.result.json.complete.json"
+            Stop = Join-Path $runPath "$filePrefix.result.json.stop.json"
             Log = Join-Path $runPath "$filePrefix.log"
         }
     }
@@ -885,6 +1134,30 @@ try {
     }
 
     $roles = @('Server', 'OwnerClient', 'ObserverClient')
+    for ($index = 0; $index -lt $childProcesses.Count; $index++) {
+        $role = $roles[$index]
+        Wait-ForRoleArtifact `
+            -Process $childProcesses[$index] `
+            -ArtifactPath $paths[$role].Completion `
+            -Description "$role completion barrier" `
+            -DeadlineUtc $runDeadlineUtc
+        Read-ValidatedCompletionReport `
+            -Path $paths[$role].Completion `
+            -ExpectedRunId $runId `
+            -ExpectedScenario $Scenario `
+            -ExpectedRole $role `
+            -ScenarioContracts $scenarioContracts | Out-Null
+    }
+
+    foreach ($role in $roles) {
+        Write-JsonFile -Path $paths[$role].Stop -Value ([ordered]@{
+            schemaVersion = 2
+            runId = $runId
+            scenarioId = $Scenario
+            role = $role
+        })
+    }
+
     for ($index = 0; $index -lt $childProcesses.Count; $index++) {
         $role = $roles[$index]
         Wait-ForRoleArtifact `

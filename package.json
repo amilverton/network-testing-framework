@@ -1,9 +1,10 @@
 {
   "name": "com.amilverton.purrnet-network-tests",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "displayName": "PurrNet Network Test Harness",
   "description": "Build and run isolated, multi-process PurrNet integration scenarios with compact machine-readable results.",
-  "unity": "6000.0",
+  "unity": "6000.4",
+  "unityRelease": "10f1",
   "author": {
     "name": "Ariel Milverton",
     "url": "https://github.com/amilverton"
@@ -15,6 +16,13 @@
     "dev.purrnet.purrnet": "1.19.1",
     "com.unity.nuget.newtonsoft-json": "3.2.1"
   },
+  "samples": [
+    {
+      "displayName": "Project Integration Bootstrap",
+      "description": "Project-owned PurrNet catalog/rules wrappers and an authored hook-provisioned UDP root.",
+      "path": "Samples~/ProjectIntegration"
+    }
+  ],
   "keywords": [
     "purrnet",
     "networking",

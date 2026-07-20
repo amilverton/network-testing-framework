@@ -6,6 +6,7 @@
 [Uu]ser[Ss]ettings/
 [Mm]emoryCaptures/
 [Rr]ecordings/
+[Tt]est[Rr]esults/
 
 # Builds and network-test artifacts
 [Bb]uild/
@@ -39,3 +40,4 @@ Desktop.ini
 # Agent and tool scratch
 tmp/
 tmp.meta
+Scratch~/

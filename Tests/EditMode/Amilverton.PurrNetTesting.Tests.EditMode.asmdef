@@ -2,15 +2,19 @@
   "name": "Amilverton.PurrNetTesting.Tests.EditMode",
   "rootNamespace": "Amilverton.PurrNetTesting.Tests",
   "references": [
-    "Amilverton.PurrNetTesting.Runtime"
+    "Amilverton.PurrNetTesting.Runtime",
+    "Amilverton.PurrNetTesting.Editor",
+    "PurrNet.Runtime"
   ],
   "includePlatforms": [
     "Editor"
   ],
   "excludePlatforms": [],
   "allowUnsafeCode": false,
-  "overrideReferences": false,
-  "precompiledReferences": [],
+  "overrideReferences": true,
+  "precompiledReferences": [
+    "Newtonsoft.Json.dll"
+  ],
   "autoReferenced": false,
   "defineConstraints": [
     "UNITY_INCLUDE_TESTS"

@@ -13,6 +13,9 @@ param(
     [ValidateRange(5, 600)]
     [int]$TimeoutSeconds = 60,
 
+    [ValidateRange(5, 1800)]
+    [int]$BuildTimeoutSeconds = 600,
+
     [ValidateRange(1, 10)]
     [int]$Repeat = 1,
 
@@ -35,10 +38,28 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-function ConvertTo-QuotedProcessArgument {
-    param([Parameter(Mandatory = $true)][string]$Value)
+function Start-HiddenProcess {
+    param(
+        [Parameter(Mandatory = $true)][string]$FilePath,
+        [Parameter(Mandatory = $true)][string[]]$Arguments
+    )
 
-    return '"' + $Value.Replace('"', '\"') + '"'
+    $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
+    $startInfo.FileName = $FilePath
+    $startInfo.UseShellExecute = $false
+    $startInfo.CreateNoWindow = $true
+    foreach ($argument in $Arguments) {
+        $startInfo.ArgumentList.Add($argument)
+    }
+
+    $process = [System.Diagnostics.Process]::new()
+    $process.StartInfo = $startInfo
+    if (-not $process.Start()) {
+        $process.Dispose()
+        throw "Could not start process '$FilePath'."
+    }
+
+    return $process
 }
 
 $suitePath = Join-Path $PSScriptRoot 'Invoke-PurrNetNetworkTestSuite.ps1'
@@ -50,7 +71,6 @@ foreach ($requiredPath in @($suitePath, $viewerPath)) {
 }
 
 $includedProjectPath = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\TestProject~'))
-$selectedIncludedProject = $false
 if ([string]::IsNullOrWhiteSpace($ProjectPath)) {
     $currentPath = [System.IO.Path]::GetFullPath((Get-Location).Path)
     if (Test-Path -LiteralPath (Join-Path $currentPath 'Packages\manifest.json') -PathType Leaf) {
@@ -58,7 +78,6 @@ if ([string]::IsNullOrWhiteSpace($ProjectPath)) {
     }
     elseif (Test-Path -LiteralPath (Join-Path $includedProjectPath 'Packages\manifest.json') -PathType Leaf) {
         $ProjectPath = $includedProjectPath
-        $selectedIncludedProject = $true
     }
     else {
         throw 'No Unity project was found in the current directory or the repository TestProject~. Supply -ProjectPath explicitly.'
@@ -69,10 +88,6 @@ $resolvedProjectPath = [System.IO.Path]::GetFullPath($ProjectPath)
 if (-not (Test-Path -LiteralPath (Join-Path $resolvedProjectPath 'Packages\manifest.json') -PathType Leaf)) {
     throw "Unity project '$resolvedProjectPath' does not contain Packages\manifest.json."
 }
-
-$selectedIncludedProject = $resolvedProjectPath.Equals(
-    $includedProjectPath,
-    [System.StringComparison]::OrdinalIgnoreCase)
 
 if ([string]::IsNullOrWhiteSpace($ArtifactsPath)) {
     $ArtifactsPath = Join-Path $resolvedProjectPath 'Artifacts\NetworkTests'
@@ -93,8 +108,8 @@ if (-not (Test-Path -LiteralPath $pwshPath -PathType Leaf)) {
 $viewerArguments = @(
     '-NoProfile',
     '-STA',
-    '-File', (ConvertTo-QuotedProcessArgument -Value $viewerPath),
-    '-ArtifactsPath', (ConvertTo-QuotedProcessArgument -Value $resolvedArtifactsPath),
+    '-File', $viewerPath,
+    '-ArtifactsPath', $resolvedArtifactsPath,
     '-FollowNewestRun',
     '-TailLines', $ViewerTailLines.ToString([System.Globalization.CultureInfo]::InvariantCulture),
     '-RefreshMilliseconds', $ViewerRefreshMilliseconds.ToString([System.Globalization.CultureInfo]::InvariantCulture),
@@ -104,19 +119,18 @@ $viewerArguments = @(
 if ($null -ne $baselineRun) {
     $viewerArguments += @(
         '-IgnoreRunPath',
-        (ConvertTo-QuotedProcessArgument -Value $baselineRun.FullName)
+        $baselineRun.FullName
     )
 }
 
-Start-Process `
-    -FilePath $pwshPath `
-    -ArgumentList ($viewerArguments -join ' ') `
-    -WindowStyle Hidden | Out-Null
+$viewerProcess = Start-HiddenProcess -FilePath $pwshPath -Arguments $viewerArguments
+$viewerProcess.Dispose()
 
 $suiteParameters = @{
     ProjectPath = $resolvedProjectPath
     ArtifactsPath = $resolvedArtifactsPath
     TimeoutSeconds = $TimeoutSeconds
+    BuildTimeoutSeconds = $BuildTimeoutSeconds
     Repeat = $Repeat
 }
 
@@ -136,10 +150,7 @@ if ($ReusePlayer) {
     $suiteParameters['ReusePlayer'] = $true
 }
 
-# The repository's included project references this package through file:../.., which cannot
-# survive a staging copy. Selecting it automatically therefore uses the coordinator's guarded
-# in-place mode; explicitly selected projects retain the normal staging default.
-if ($BuildInPlace -or $selectedIncludedProject) {
+if ($BuildInPlace) {
     $suiteParameters['BuildInPlace'] = $true
 }
 

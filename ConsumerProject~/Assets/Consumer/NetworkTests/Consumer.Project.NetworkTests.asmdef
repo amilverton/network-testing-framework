@@ -1,0 +1,19 @@
+{
+  "name": "Consumer.Project.NetworkTests",
+  "rootNamespace": "ConsumerProject.NetworkTests",
+  "references": [
+    "Consumer.Project.Core",
+    "Consumer.Project.Networking",
+    "Amilverton.PurrNetTesting.Runtime",
+    "PurrNet.Runtime"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

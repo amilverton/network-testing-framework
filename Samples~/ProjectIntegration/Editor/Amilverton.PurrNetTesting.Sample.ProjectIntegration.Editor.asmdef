@@ -1,0 +1,20 @@
+{
+  "name": "Amilverton.PurrNetTesting.Sample.ProjectIntegration.Editor",
+  "rootNamespace": "Amilverton.PurrNetTesting.Sample.ProjectIntegration.Editor",
+  "references": [
+    "Amilverton.PurrNetTesting.Runtime",
+    "Amilverton.PurrNetTesting.Sample.ProjectIntegration",
+    "PurrNet.Runtime"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

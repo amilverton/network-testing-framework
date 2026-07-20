@@ -1,0 +1,17 @@
+{
+  "name": "Consumer.Project.Networking",
+  "rootNamespace": "ConsumerProject.Networking",
+  "references": [
+    "Consumer.Project.Core",
+    "PurrNet.Runtime"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

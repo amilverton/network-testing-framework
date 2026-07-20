@@ -1,0 +1,50 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &7065141476139639139
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 5145191786964562439}
+  - component: {fileID: 5807577487233793445}
+  m_Layer: 0
+  m_Name: ConsumerNetworkTestBootstrap
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 0
+--- !u!4 &5145191786964562439
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7065141476139639139}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &5807577487233793445
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7065141476139639139}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 498ca1f1ab4610d49962d83b11999a0e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Consumer.Project.NetworkTests::ConsumerProject.NetworkTests.ConsumerNetworkTestBootstrapHook
+  provisionUdpNetworkRoot: 1
+  networkPrefabs: {fileID: 11400000, guid: 8e910a0a53d1518449bc6da2e67f9a26, type: 2}
+  networkRules: {fileID: 11400000, guid: 518e08370a2c440498880b11869129b3, type: 2}
+  projectPrefab: {fileID: 2011043245375738568, guid: 1e64e19175a32684a8e1d9d6d47c543d, type: 3}

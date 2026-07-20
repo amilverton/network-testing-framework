@@ -1,0 +1,258 @@
+{
+  "schemaVersion": 1,
+  "bootstrapPrefabPath": "Assets/Consumer/Generated/ConsumerNetworkTestBootstrap.prefab",
+  "scenarios": [
+    {
+      "id": "Consumer.PortabilityCounter",
+      "enabled": true,
+      "typeName": "ConsumerProject.NetworkTests.ConsumerPortabilityNetworkScenario, Consumer.Project.NetworkTests",
+      "contract": {
+        "schemaVersion": 1,
+        "stateRevision": 1,
+        "sharedFacts": {
+          "counter.initial": 10,
+          "counter.increment": 5,
+          "counter.final": 15,
+          "counter.requesterRole": "OwnerClient",
+          "project.prefabProviderPreserved": true
+        },
+        "roles": {
+          "Server": {
+            "evidence": {
+              "projectPrefabPreserved": true,
+              "projectPrefabId": 0,
+              "acceptedIncrementAmount": 5,
+              "acknowledgedClients": 2,
+              "projectHookStopped": true
+            },
+            "readyMilestones": [
+              "project-prefab-provider-preserved",
+              "server-listening",
+              "fixture-created",
+              "counter-created",
+              "fixture-spawned"
+            ],
+            "assertions": [
+              "server-derived-owner-request-from-rpc-sender",
+              "server-applied-project-counter-rule",
+              "server-confirmed-both-clients-observed-counter"
+            ],
+            "milestones": [
+              "project-prefab-provider-preserved",
+              "server-listening",
+              "fixture-created",
+              "counter-created",
+              "fixture-spawned",
+              "participants-confirmed",
+              "increment-accepted",
+              "all-clients-observed-counter",
+              "project-bootstrap-hook-stopped"
+            ]
+          },
+          "OwnerClient": {
+            "evidence": {
+              "projectPrefabPreserved": true,
+              "projectPrefabId": 0,
+              "observedCounter": 15,
+              "counterChangeCallbacks": 1,
+              "requestedIncrement": true,
+              "projectHookStopped": true
+            },
+            "readyMilestones": [
+              "project-prefab-provider-preserved",
+              "client-connected",
+              "role-assigned",
+              "initial-counter-observed",
+              "fixture-spawned"
+            ],
+            "assertions": [
+              "client-observed-replicated-project-counter"
+            ],
+            "milestones": [
+              "project-prefab-provider-preserved",
+              "client-connected",
+              "role-assigned",
+              "initial-counter-observed",
+              "fixture-spawned",
+              "increment-requested",
+              "replicated-counter-observed",
+              "counter-completion-observed",
+              "project-bootstrap-hook-stopped"
+            ]
+          },
+          "ObserverClient": {
+            "evidence": {
+              "projectPrefabPreserved": true,
+              "projectPrefabId": 0,
+              "observedCounter": 15,
+              "counterChangeCallbacks": 1,
+              "requestedIncrement": false,
+              "projectHookStopped": true
+            },
+            "readyMilestones": [
+              "project-prefab-provider-preserved",
+              "client-connected",
+              "role-assigned",
+              "initial-counter-observed",
+              "fixture-spawned"
+            ],
+            "assertions": [
+              "client-observed-replicated-project-counter"
+            ],
+            "milestones": [
+              "project-prefab-provider-preserved",
+              "client-connected",
+              "role-assigned",
+              "initial-counter-observed",
+              "fixture-spawned",
+              "replicated-counter-observed",
+              "counter-completion-observed",
+              "project-bootstrap-hook-stopped"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "Consumer.ObserverMutationRejected",
+      "enabled": true,
+      "typeName": "ConsumerProject.NetworkTests.ConsumerObserverMutationRejectedScenario, Consumer.Project.NetworkTests",
+      "contract": {
+        "schemaVersion": 1,
+        "stateRevision": 1,
+        "sharedFacts": {
+          "mutation.initial": 10,
+          "mutation.increment": 5,
+          "mutation.final": 15,
+          "mutation.authorizedRole": "OwnerClient",
+          "mutation.unauthorizedRole": "ObserverClient",
+          "mutation.acceptedCount": 1,
+          "mutation.rejectedCount": 1,
+          "project.prefabProviderPreserved": true
+        },
+        "roles": {
+          "Server": {
+            "evidence": {
+              "projectPrefabPreserved": true,
+              "projectPrefabId": 0,
+              "acceptedMutationCount": 1,
+              "rejectedMutationCount": 1,
+              "authoritativeCounter": 15,
+              "ownerAcknowledged": true,
+              "observerAcknowledged": true,
+              "projectHookStopped": true
+            },
+            "readyMilestones": [
+              "project-prefab-provider-preserved",
+              "server-listening",
+              "fixture-created",
+              "mutation-state-created",
+              "fixture-spawned"
+            ],
+            "assertions": [
+              "server-derived-mutation-authority-from-rpc-sender",
+              "server-rejected-observer-mutation-without-state-change",
+              "server-accepted-owner-mutation-exactly-once",
+              "server-confirmed-three-role-authoritative-state"
+            ],
+            "milestones": [
+              "project-prefab-provider-preserved",
+              "server-listening",
+              "fixture-created",
+              "mutation-state-created",
+              "fixture-spawned",
+              "mutation-participants-confirmed",
+              "observer-mutation-rejected",
+              "observer-rejection-state-verified",
+              "observer-rejection-client-confirmed",
+              "owner-mutation-accepted",
+              "server-observed-authoritative-state",
+              "all-roles-observed-authoritative-state",
+              "project-bootstrap-hook-stopped"
+            ]
+          },
+          "OwnerClient": {
+            "evidence": {
+              "projectPrefabPreserved": true,
+              "projectPrefabId": 0,
+              "attemptedUnauthorizedMutation": false,
+              "attemptedAuthorizedMutation": true,
+              "observerRejectionConfirmed": false,
+              "observedCounter": 15,
+              "counterChangeCallbacks": 1,
+              "projectHookStopped": true
+            },
+            "readyMilestones": [
+              "project-prefab-provider-preserved",
+              "client-connected",
+              "role-assigned",
+              "initial-mutation-state-observed",
+              "fixture-spawned"
+            ],
+            "assertions": [
+              "owner-sent-authorized-mutation-intent",
+              "owner-observed-replicated-authoritative-state",
+              "owner-observed-single-authorized-transition"
+            ],
+            "milestones": [
+              "project-prefab-provider-preserved",
+              "client-connected",
+              "role-assigned",
+              "initial-mutation-state-observed",
+              "fixture-spawned",
+              "owner-mutation-requested",
+              "replicated-authoritative-state-observed",
+              "mutation-completion-observed",
+              "project-bootstrap-hook-stopped"
+            ]
+          },
+          "ObserverClient": {
+            "evidence": {
+              "projectPrefabPreserved": true,
+              "projectPrefabId": 0,
+              "attemptedUnauthorizedMutation": true,
+              "attemptedAuthorizedMutation": false,
+              "observerRejectionConfirmed": true,
+              "observedCounter": 15,
+              "counterChangeCallbacks": 1,
+              "projectHookStopped": true
+            },
+            "readyMilestones": [
+              "project-prefab-provider-preserved",
+              "client-connected",
+              "role-assigned",
+              "initial-mutation-state-observed",
+              "fixture-spawned"
+            ],
+            "assertions": [
+              "observer-sent-unauthorized-mutation-intent",
+              "observer-observed-rejection-before-owner-mutation",
+              "observer-observed-only-authorized-replicated-transition"
+            ],
+            "milestones": [
+              "project-prefab-provider-preserved",
+              "client-connected",
+              "role-assigned",
+              "initial-mutation-state-observed",
+              "fixture-spawned",
+              "observer-mutation-requested",
+              "observer-rejection-confirmed",
+              "replicated-authoritative-state-observed",
+              "mutation-completion-observed",
+              "project-bootstrap-hook-stopped"
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "suites": [
+    {
+      "name": "consumer-portability",
+      "scenarios": [
+        "Consumer.PortabilityCounter",
+        "Consumer.ObserverMutationRejected"
+      ]
+    }
+  ]
+}

@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.4.0 - 2026-07-20
+
+- Add a strict project manifest with exact per-role contracts, named suites, code or authored-prefab
+  scenario sources, and fail-closed discovery.
+- Add SHA-256-bound execution manifests, schema-2 build receipts, complete project-input reuse
+  fingerprints, and a coordinated three-role completion/stop barrier.
+- Support inactive project-authored network roots, project prefab-provider composition, synchronous
+  setup/cleanup hooks, and hook-provisioned UDP roots for Git-package MonoScript limitations.
+- Add deterministic local-package staging with digest verification and rejection of unsafe roots,
+  reparse points, ambiguous JSON, and nested local dependency chains.
+- Add the Unity Package Control window, complete interactive suite launch, live role output, and
+  cancellable viewer integration.
+- Add a hash-owned, version-matched package skill installer plus canonical `Skills~` source and
+  project mirror.
+- Add a clean, multi-assembly consumer fixture that proves authored project assets, retained prefab
+  IDs, real sender-derived RPC mutation, replication, and post-disconnect cleanup.
+- Bound Unity authoring/build processes with owned-tree cleanup, stream large-file fingerprints,
+  reject source/stage aliasing, use exact argument-list process launches, and serialize skill installs.
+
 ## 0.3.0 - 2026-07-20
 
 - Add a five-second sustained packet-stream scenario with 20 interval-driven owner requests,

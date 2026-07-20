@@ -9,19 +9,13 @@ param(
 
     [string]$ArtifactsPath,
 
-    [string[]]$Scenarios = @(
-        'Harness.SustainedPacketStream',
-        'Harness.RpcRouting',
-        'Harness.CrossPlayerDamage',
-        'Harness.LateJoinState',
-        'Harness.OwnerNetworkTransform',
-        'Harness.OwnershipTransfer',
-        'Harness.SyncListOrder',
-        'Harness.InventoryTransfer'
-    ),
+    [string[]]$Scenarios,
 
     [ValidateRange(5, 600)]
     [int]$TimeoutSeconds = 60,
+
+    [ValidateRange(5, 1800)]
+    [int]$BuildTimeoutSeconds = 600,
 
     [ValidateRange(1, 10)]
     [int]$Repeat = 1,
@@ -48,6 +42,41 @@ if (-not (Test-Path -LiteralPath $pwshPath -PathType Leaf)) {
     throw "PowerShell 7 executable '$pwshPath' does not exist."
 }
 
+if (-not $PSBoundParameters.ContainsKey('Scenarios')) {
+    $Scenarios = @(
+        'Harness.SustainedPacketStream',
+        'Harness.RpcRouting',
+        'Harness.CrossPlayerDamage',
+        'Harness.LateJoinState',
+        'Harness.OwnerNetworkTransform',
+        'Harness.OwnershipTransfer',
+        'Harness.SyncListOrder',
+        'Harness.InventoryTransfer'
+    )
+
+    $projectManifestPath = Join-Path `
+        ([System.IO.Path]::GetFullPath($ProjectPath)) `
+        'ProjectSettings\PurrNetNetworkTests.json'
+    if (Test-Path -LiteralPath $projectManifestPath -PathType Leaf) {
+        $projectManifest = Get-Content -LiteralPath $projectManifestPath -Raw | ConvertFrom-Json
+        $enabledProjectScenarios = @(
+            $projectManifest.scenarios |
+                Where-Object { $_.enabled -eq $true } |
+                ForEach-Object { [string]$_.id }
+        )
+        $Scenarios += $enabledProjectScenarios
+    }
+}
+
+if ($null -eq $Scenarios -or $Scenarios.Count -eq 0) {
+    throw 'The network-test suite requires at least one scenario.'
+}
+
+if (@($Scenarios | Where-Object { [string]::IsNullOrWhiteSpace($_) }).Count -gt 0 -or
+    @($Scenarios | Sort-Object -Unique).Count -ne $Scenarios.Count) {
+    throw 'Scenario IDs must be nonblank and unique within a suite run.'
+}
+
 $results = [System.Collections.Generic.List[object]]::new()
 $reusePlayer = $ReusePlayer.IsPresent
 
@@ -58,7 +87,8 @@ for ($iteration = 1; $iteration -le $Repeat; $iteration++) {
             '-File', $coordinatorPath,
             '-ProjectPath', $ProjectPath,
             '-Scenario', $scenario,
-            '-TimeoutSeconds', [string]$TimeoutSeconds
+            '-TimeoutSeconds', [string]$TimeoutSeconds,
+            '-BuildTimeoutSeconds', [string]$BuildTimeoutSeconds
         )
 
         if (-not [string]::IsNullOrWhiteSpace($UnityPath)) {
