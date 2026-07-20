@@ -1,4 +1,37 @@
 {
+  "Harness.SustainedPacketStream": {
+    "stateRevision": 20,
+    "sharedFacts": {
+      "packetStream.packetCount": 20,
+      "packetStream.intervalMilliseconds": 250,
+      "packetStream.nominalDurationMilliseconds": 5000,
+      "packetStream.finalSequence": 20,
+      "packetStream.finalValue": 63109,
+      "packetStream.payloadChecksum": 957570,
+      "packetStream.sourceRole": "OwnerClient",
+      "packetStream.payloadPattern": "deterministic-pseudorandom"
+    },
+    "roles": {
+      "Server": {
+        "evidence": { "acceptedPacketCount": 20, "payloadChecksum": 957570, "finalValue": 63109, "cadenceWindowValid": true },
+        "readyMilestones": ["server-listening", "fixture-created", "empty-packet-stream-created", "fixture-spawned"],
+        "assertions": ["server-accepted-exact-ordered-packet-stream", "server-observed-sustained-packet-cadence", "server-confirmed-both-clients-received-every-packet"],
+        "milestones": ["server-listening", "fixture-created", "empty-packet-stream-created", "fixture-spawned", "packet-stream-participants-ready", "packet-stream-first-packet-accepted", "packet-stream-last-packet-accepted", "all-clients-confirmed-packet-stream"]
+      },
+      "OwnerClient": {
+        "evidence": { "sentPacketCount": 20, "receivedPacketCount": 20, "payloadChecksum": 957570, "finalValue": 63109 },
+        "readyMilestones": ["client-connected", "initial-packet-state-observed", "fixture-spawned"],
+        "assertions": ["client-received-exact-ordered-packet-stream", "client-converged-on-final-authoritative-value", "owner-sent-exact-configured-packet-count"],
+        "milestones": ["client-connected", "initial-packet-state-observed", "fixture-spawned", "packet-stream-sending-started", "packet-stream-first-packet-received", "packet-stream-last-packet-received", "packet-stream-completion-observed"]
+      },
+      "ObserverClient": {
+        "evidence": { "receivedPacketCount": 20, "payloadChecksum": 957570, "finalValue": 63109 },
+        "readyMilestones": ["client-connected", "initial-packet-state-observed", "fixture-spawned"],
+        "assertions": ["client-received-exact-ordered-packet-stream", "client-converged-on-final-authoritative-value"],
+        "milestones": ["client-connected", "initial-packet-state-observed", "fixture-spawned", "packet-stream-first-packet-received", "packet-stream-last-packet-received", "packet-stream-completion-observed"]
+      }
+    }
+  },
   "Harness.RpcRouting": {
     "stateRevision": 1,
     "sharedFacts": {

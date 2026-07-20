@@ -10,7 +10,14 @@ param(
     [int]$TailLines = 500,
 
     [ValidateRange(250, 60000)]
-    [int]$RefreshMilliseconds = 1000
+    [int]$RefreshMilliseconds = 1000,
+
+    [switch]$FollowNewestRun,
+
+    [string]$IgnoreRunPath,
+
+    [ValidateSet('Evidence', 'RawLog')]
+    [string]$DefaultTab = 'Evidence'
 )
 
 Set-StrictMode -Version Latest
@@ -41,15 +48,53 @@ if ([System.Threading.Thread]::CurrentThread.ApartmentState -ne [System.Threadin
         '-RefreshMilliseconds', $RefreshMilliseconds.ToString([System.Globalization.CultureInfo]::InvariantCulture)
     )
 
+    if ($FollowNewestRun) {
+        $forwardedArguments += '-FollowNewestRun'
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($IgnoreRunPath)) {
+        $forwardedArguments += @('-IgnoreRunPath', $IgnoreRunPath)
+    }
+
+    $forwardedArguments += @('-DefaultTab', $DefaultTab)
+
     & $pwshPath @forwardedArguments
     exit $LASTEXITCODE
+}
+
+if ($FollowNewestRun -and $PSCmdlet.ParameterSetName -eq 'Run') {
+    throw '-FollowNewestRun requires -ArtifactsPath because a fixed -RunPath cannot follow later suite runs.'
+}
+
+if (-not [string]::IsNullOrWhiteSpace($IgnoreRunPath) -and -not $FollowNewestRun) {
+    throw '-IgnoreRunPath requires -FollowNewestRun.'
+}
+
+function Find-NewestRunDirectory {
+    param([Parameter(Mandatory = $true)][string]$ResolvedArtifactsPath)
+
+    $runsPath = Join-Path $ResolvedArtifactsPath 'Runs'
+    if (-not (Test-Path -LiteralPath $runsPath -PathType Container)) {
+        return $null
+    }
+
+    $newestRun = Get-ChildItem -LiteralPath $runsPath -Directory |
+        Sort-Object -Property LastWriteTimeUtc, Name -Descending |
+        Select-Object -First 1
+
+    if ($null -eq $newestRun) {
+        return $null
+    }
+
+    return $newestRun.FullName
 }
 
 function Resolve-RunDirectory {
     param(
         [string]$RequestedRunPath,
         [string]$RequestedArtifactsPath,
-        [Parameter(Mandatory = $true)][string]$ParameterSetName
+        [Parameter(Mandatory = $true)][string]$ParameterSetName,
+        [Parameter(Mandatory = $true)][bool]$AllowMissingRun
     )
 
     if ($ParameterSetName -eq 'Run') {
@@ -66,20 +111,12 @@ function Resolve-RunDirectory {
         throw "Artifacts directory '$fullArtifactsPath' does not exist. Run the network test coordinator first."
     }
 
-    $runsPath = Join-Path $fullArtifactsPath 'Runs'
-    if (-not (Test-Path -LiteralPath $runsPath -PathType Container)) {
-        throw "Runs directory '$runsPath' does not exist. Expected -ArtifactsPath to point at the NetworkTests artifacts directory."
+    $newestRunPath = Find-NewestRunDirectory -ResolvedArtifactsPath $fullArtifactsPath
+    if ($null -eq $newestRunPath -and -not $AllowMissingRun) {
+        throw "No run directories were found under '$(Join-Path $fullArtifactsPath 'Runs')'. Start a network test before opening the viewer."
     }
 
-    $newestRun = Get-ChildItem -LiteralPath $runsPath -Directory |
-        Sort-Object -Property LastWriteTimeUtc, Name -Descending |
-        Select-Object -First 1
-
-    if ($null -eq $newestRun) {
-        throw "No run directories were found under '$runsPath'. Start a network test before opening the viewer."
-    }
-
-    return $newestRun.FullName
+    return $newestRunPath
 }
 
 function Read-SharedText {
@@ -297,7 +334,8 @@ function Format-ArtifactEvidence {
 function New-RoleView {
     param(
         [Parameter(Mandatory = $true)][string]$Role,
-        [Parameter(Mandatory = $true)][int]$Column
+        [Parameter(Mandatory = $true)][int]$Column,
+        [Parameter(Mandatory = $true)][string]$SelectedTab
     )
 
     $headerPanel = [System.Windows.Controls.StackPanel]::new()
@@ -359,6 +397,7 @@ function New-RoleView {
     $logTab.Header = 'Raw Unity log'
     $logTab.Content = $logText
     $tabControl.Items.Add($logTab) | Out-Null
+    $tabControl.SelectedIndex = if ($SelectedTab -eq 'RawLog') { 1 } else { 0 }
 
     $group = [System.Windows.Controls.GroupBox]::new()
     $group.Header = $headerPanel
@@ -441,10 +480,36 @@ function Get-RoleStatus {
     return [pscustomobject]@{ Label = 'WAITING FOR PROCESS'; Detail = ''; Category = 'Waiting' }
 }
 
-$resolvedRunPath = Resolve-RunDirectory `
+$resolvedArtifactsPath = if ($PSCmdlet.ParameterSetName -eq 'Artifacts') {
+    [System.IO.Path]::GetFullPath($ArtifactsPath)
+}
+else {
+    $null
+}
+
+$resolvedNewestRunPath = Resolve-RunDirectory `
     -RequestedRunPath $RunPath `
     -RequestedArtifactsPath $ArtifactsPath `
-    -ParameterSetName $PSCmdlet.ParameterSetName
+    -ParameterSetName $PSCmdlet.ParameterSetName `
+    -AllowMissingRun $FollowNewestRun.IsPresent
+
+$resolvedIgnoredRunPath = if ([string]::IsNullOrWhiteSpace($IgnoreRunPath)) {
+    $null
+}
+else {
+    [System.IO.Path]::GetFullPath($IgnoreRunPath)
+}
+
+$initialRunPath = if ($resolvedNewestRunPath -eq $resolvedIgnoredRunPath) {
+    $null
+}
+else {
+    $resolvedNewestRunPath
+}
+$viewerState = [pscustomobject]@{
+    RunPath = $initialRunPath
+    BaselineRunPath = $resolvedIgnoredRunPath
+}
 
 Add-Type -AssemblyName PresentationFramework
 Add-Type -AssemblyName PresentationCore
@@ -457,7 +522,13 @@ $roles = [ordered]@{
 }
 
 $window = [System.Windows.Window]::new()
-$window.Title = "PurrNet Network Test Viewer - $([System.IO.Path]::GetFileName($resolvedRunPath))"
+$initialRunLabel = if ($null -eq $viewerState.RunPath) {
+    'waiting for first run'
+}
+else {
+    [System.IO.Path]::GetFileName($viewerState.RunPath)
+}
+$window.Title = "PurrNet Network Test Viewer - $initialRunLabel"
 $window.Width = 1500
 $window.Height = 850
 $window.MinWidth = 900
@@ -480,7 +551,15 @@ $titleText.FontWeight = [System.Windows.FontWeights]::SemiBold
 $headerPanel.Children.Add($titleText) | Out-Null
 
 $runText = [System.Windows.Controls.TextBlock]::new()
-$runText.Text = $resolvedRunPath
+$runText.Text = if ($null -eq $viewerState.RunPath) {
+    "Waiting for the first suite run under $resolvedArtifactsPath"
+}
+elseif ($FollowNewestRun) {
+    "$($viewerState.RunPath) (following newest suite run)"
+}
+else {
+    $viewerState.RunPath
+}
 $runText.Foreground = [System.Windows.Media.Brushes]::DimGray
 $runText.TextWrapping = [System.Windows.TextWrapping]::Wrap
 $headerPanel.Children.Add($runText) | Out-Null
@@ -534,20 +613,38 @@ $rootPanel.Children.Add($logGrid) | Out-Null
 $roleViews = [ordered]@{}
 $columnIndex = 0
 foreach ($role in $roles.Keys) {
-    $roleView = New-RoleView -Role $role -Column $columnIndex
+    $roleView = New-RoleView -Role $role -Column $columnIndex -SelectedTab $DefaultTab
     $roleViews[$role] = $roleView
     $logGrid.Children.Add($roleView.Group) | Out-Null
     $columnIndex++
 }
 
 $refreshAction = {
+    if ($FollowNewestRun) {
+        $newestRunPath = Find-NewestRunDirectory -ResolvedArtifactsPath $resolvedArtifactsPath
+        $isBaselineRun = $null -eq $viewerState.RunPath -and
+            $null -ne $viewerState.BaselineRunPath -and
+            $newestRunPath -eq $viewerState.BaselineRunPath
+        if ($null -ne $newestRunPath -and -not $isBaselineRun -and $newestRunPath -ne $viewerState.RunPath) {
+            $viewerState.RunPath = $newestRunPath
+            $runText.Text = "$newestRunPath (following newest suite run)"
+        }
+    }
+
+    if ($null -eq $viewerState.RunPath) {
+        $overallText.Text = 'Overall: WAITING FOR FIRST RUN'
+        $overallText.Foreground = [System.Windows.Media.Brushes]::DimGray
+        $window.Title = 'PurrNet Network Test Viewer - waiting for first run'
+        return
+    }
+
     $categories = [System.Collections.Generic.List[string]]::new()
 
     foreach ($role in $roles.Keys) {
         $prefix = $roles[$role]
-        $readyPath = Join-Path $resolvedRunPath "$prefix.ready.json"
-        $resultPath = Join-Path $resolvedRunPath "$prefix.result.json"
-        $logPath = Join-Path $resolvedRunPath "$prefix.log"
+        $readyPath = Join-Path $viewerState.RunPath "$prefix.ready.json"
+        $resultPath = Join-Path $viewerState.RunPath "$prefix.result.json"
+        $logPath = Join-Path $viewerState.RunPath "$prefix.log"
 
         $readyArtifact = Read-JsonArtifact -Path $readyPath
         $resultArtifact = Read-JsonArtifact -Path $resultPath
@@ -605,7 +702,7 @@ $refreshAction = {
         $overallText.Text = 'Overall: ARTIFACT ERROR'
         $overallText.Foreground = [System.Windows.Media.BrushConverter]::new().ConvertFromString('#D97706')
     }
-    elseif (($categories | Where-Object { $_ -eq 'Passed' }).Count -eq $roles.Count) {
+    elseif (@($categories | Where-Object { $_ -eq 'Passed' }).Count -eq $roles.Count) {
         $overallText.Text = 'Overall: PASSED'
         $overallText.Foreground = [System.Windows.Media.BrushConverter]::new().ConvertFromString('#059669')
     }
@@ -614,7 +711,7 @@ $refreshAction = {
         $overallText.Foreground = [System.Windows.Media.BrushConverter]::new().ConvertFromString('#2563EB')
     }
 
-    $window.Title = "PurrNet Network Test Viewer - $([System.IO.Path]::GetFileName($resolvedRunPath)) - $($overallText.Text.Replace('Overall: ', ''))"
+    $window.Title = "PurrNet Network Test Viewer - $([System.IO.Path]::GetFileName($viewerState.RunPath)) - $($overallText.Text.Replace('Overall: ', ''))"
 }
 
 $timer = [System.Windows.Threading.DispatcherTimer]::new()

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.0 - 2026-07-20
+
+- Add a five-second sustained packet-stream scenario with 20 interval-driven owner requests,
+  server-authoritative sequencing, per-packet observer broadcasts, cadence validation, and final
+  SyncVar convergence.
+- Add a one-command interactive suite runner which launches the live three-role viewer for humans.
+
 ## 0.2.0 - 2026-07-19
 
 - Add RPC routing, cross-player damage, late-join snapshot/delta, owner NetworkTransform,

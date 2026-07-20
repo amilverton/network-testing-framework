@@ -10,6 +10,7 @@ param(
     [string]$ArtifactsPath,
 
     [string[]]$Scenarios = @(
+        'Harness.SustainedPacketStream',
         'Harness.RpcRouting',
         'Harness.CrossPlayerDamage',
         'Harness.LateJoinState',

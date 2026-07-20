@@ -24,6 +24,9 @@ zero; a successful build or one client report is not a pass.
    Unity version changed. Add `-OpenViewer` only
    when a human wants the optional three-pane evidence and raw-log window; automated runs do not
    need it. The default evidence tabs show assertions, role-local evidence, milestones, and shared facts.
+   When a human wants to watch the complete matrix, use
+   `Tools~/Invoke-PurrNetNetworkTestSuiteInteractive.ps1`; it opens one viewer on raw logs and follows
+   each new run through the suite.
 5. Parse the command's final JSON. Report the run ID, scenario, revision, shared facts, and artifact path.
 6. On failure, inspect the newest run's existing `*.result.json`, `*.ready.json`, and role logs before
    changing code. Preserve those artifacts.

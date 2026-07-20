@@ -4,8 +4,10 @@ Build one test-only Unity Player, launch it as a dedicated server plus two indep
 receive compact machine-readable proof of PurrNet authority and replication. The normal Unity Editor
 can remain open because the default build happens in an isolated staging copy.
 
-The package includes seven real-network scenarios:
+The package includes eight real-network scenarios:
 
+- `Harness.SustainedPacketStream` — five seconds of ordered interval traffic, per-packet delivery,
+  cadence validation, and final replicated-value convergence;
 - `Harness.RpcRouting` — exact TargetRpc and ObserversRpc inclusion/exclusion;
 - `Harness.CrossPlayerDamage` — sender-derived damage, health replication, and replay rejection;
 - `Harness.LateJoinState` — committed late-join snapshot followed by a live delta;
@@ -99,6 +101,21 @@ pwsh -File .\Tools~\Invoke-PurrNetNetworkTestSuite.ps1 `
 
 Every repetition must pass; the suite never converts an intermittent failure into success by majority
 vote. Add `-ReusePlayer` to reuse a fingerprint-matching build from an earlier command.
+
+For a human-observable run, use the interactive launcher. From this repository it automatically
+selects `TestProject~`, uses its required in-place build mode, and opens one live three-role viewer
+that follows each scenario as the suite advances. It opens on the raw log tabs so ongoing packet
+activity is visible; select `Harness evidence` in any role pane to inspect its structured result:
+
+```powershell
+pwsh -File .\Tools~\Invoke-PurrNetNetworkTestSuiteInteractive.ps1
+```
+
+The window remains on the last run after the suite finishes, so its final evidence and raw logs stay
+available for inspection. Close the included `TestProject~` Editor before using the no-argument
+launcher because its local package reference requires guarded in-place compilation. When invoking
+the launcher from an installed package, run it from the consuming Unity project directory or pass
+`-ProjectPath`; staged builds remain the default there.
 
 ## Add a feature scenario
 
