@@ -1,8 +1,8 @@
 {
-  "name": "Amilverton.PurrNetTesting.Sample.ProjectIntegration",
-  "rootNamespace": "Amilverton.PurrNetTesting.Sample.ProjectIntegration",
+  "name": "Caffeinated.NetworkTesting.Sample.ProjectIntegration",
+  "rootNamespace": "Caffeinated.NetworkTesting.Sample.ProjectIntegration",
   "references": [
-    "Amilverton.PurrNetTesting.Runtime",
+    "Caffeinated.NetworkTesting.Runtime",
     "PurrNet.Runtime"
   ],
   "includePlatforms": [],

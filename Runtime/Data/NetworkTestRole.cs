@@ -1,4 +1,4 @@
-namespace Amilverton.PurrNetTesting
+namespace Caffeinated.NetworkTesting
 {
     /// <summary>
     /// Identifies one standalone process in a network test run.

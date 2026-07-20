@@ -17,7 +17,7 @@ Install both Git dependencies directly in `Packages/manifest.json`:
 ```json
 {
   "dependencies": {
-    "com.amilverton.purrnet-network-tests": "https://github.com/amilverton/network-testing-framework.git",
+    "com.caffeinated.network-testing": "https://github.com/amilverton/caffeinated-network-testing.git#v0.5.0",
     "dev.purrnet.purrnet": "https://github.com/PurrNet/PurrNet.git?path=/Assets/PurrNet#v1.19.1"
   }
 }
@@ -261,7 +261,7 @@ deadline. Either timeout terminates the coordinator-owned process tree and prese
 
 ## Editor, CLI, and viewer surfaces
 
-The Unity menu `Tools > PurrNet Network Tests > Package Control` provides four guarded actions:
+The Unity menu `Tools > Caffeinated Network Testing > Package Control` provides four guarded actions:
 
 - create a missing empty project manifest without overwriting;
 - install/update the packaged AI skill;
@@ -307,14 +307,14 @@ Resolve the installed package root, then install its package-owned skill:
     -ProjectPath $projectRoot
 ```
 
-The installer writes `.agents/skills/run-purrnet-network-tests` and an ownership record containing the
+The installer writes `.agents/skills/run-caffeinated-network-tests` and an ownership record containing the
 package version, canonical source hash, and installed-content hash. It atomically replaces only a
 previously owned, hash-matching copy. It refuses an unowned directory or a locally modified installed
 copy. Use `-StageIncoming` to create a versioned sibling for explicit review instead of overwriting
 local work.
 
 Start the agent in the consuming repository after installation and invoke
-`$run-purrnet-network-tests`. A clean-context agent should resolve the package and ownership record,
+`$run-caffeinated-network-tests`. A clean-context agent should resolve the package and ownership record,
 inspect the exact manifest/source contract, use the versioned coordinator rather than recreating its
 logic, parse the final JSON, and retain the artifact path in its report. On failure it should inspect
 existing evidence first and preserve the run directory.

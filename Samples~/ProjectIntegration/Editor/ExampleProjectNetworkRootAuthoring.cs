@@ -4,7 +4,7 @@ using System.IO;
 using UnityEditor;
 using UnityEngine;
 
-namespace Amilverton.PurrNetTesting.Sample.ProjectIntegration.Editor
+namespace Caffeinated.NetworkTesting.Sample.ProjectIntegration.Editor
 {
     /// <summary>
     /// Creates the minimal project-owned assets for a hook-provisioned PurrNet test root.
@@ -20,7 +20,7 @@ namespace Amilverton.PurrNetTesting.Sample.ProjectIntegration.Editor
             GeneratedFolderPath + "/ProjectNetworkTestBootstrap.prefab";
 
         [MenuItem(
-            "Tools/PurrNet Network Tests/Samples/Create Hook-Provisioned Root",
+            "Tools/Caffeinated Network Testing/Samples/Create Hook-Provisioned Root",
             priority = 1902)]
         public static void CreateHookProvisionedRoot()
         {

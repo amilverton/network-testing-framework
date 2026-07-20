@@ -1,9 +1,9 @@
 {
-  "name": "Amilverton.PurrNetTesting.Tests.EditMode",
-  "rootNamespace": "Amilverton.PurrNetTesting.Tests",
+  "name": "Caffeinated.NetworkTesting.Tests.EditMode",
+  "rootNamespace": "Caffeinated.NetworkTesting.Tests",
   "references": [
-    "Amilverton.PurrNetTesting.Runtime",
-    "Amilverton.PurrNetTesting.Editor",
+    "Caffeinated.NetworkTesting.Runtime",
+    "Caffeinated.NetworkTesting.Editor",
     "PurrNet.Runtime"
   ],
   "includePlatforms": [

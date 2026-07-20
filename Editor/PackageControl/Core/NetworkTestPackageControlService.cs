@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace Amilverton.PurrNetTesting.Editor.PackageControl
+namespace Caffeinated.NetworkTesting.Editor.PackageControl
 {
     internal sealed class NetworkTestPackageControlService : IDisposable
     {

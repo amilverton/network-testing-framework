@@ -2,14 +2,14 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
-using Amilverton.PurrNetTesting.Editor;
+using Caffeinated.NetworkTesting.Editor;
 using NUnit.Framework;
 using PurrNet;
 using PurrNet.Transports;
 using UnityEngine;
 using UnityEngine.TestTools;
 
-namespace Amilverton.PurrNetTesting.Tests
+namespace Caffeinated.NetworkTesting.Tests
 {
     public sealed class NetworkTestBootstrapTests
     {

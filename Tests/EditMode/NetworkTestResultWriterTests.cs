@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using NUnit.Framework;
 
-namespace Amilverton.PurrNetTesting.Tests
+namespace Caffeinated.NetworkTesting.Tests
 {
     public sealed class NetworkTestResultWriterTests
     {

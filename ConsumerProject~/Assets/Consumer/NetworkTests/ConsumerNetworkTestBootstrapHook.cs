@@ -1,5 +1,5 @@
 using System;
-using Amilverton.PurrNetTesting;
+using Caffeinated.NetworkTesting;
 using ConsumerProject.Core;
 using ConsumerProject.Networking;
 using PurrNet;

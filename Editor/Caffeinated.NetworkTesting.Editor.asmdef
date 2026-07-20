@@ -1,9 +1,8 @@
 {
-  "name": "Amilverton.PurrNetTesting.Sample.ProjectIntegration.Editor",
-  "rootNamespace": "Amilverton.PurrNetTesting.Sample.ProjectIntegration.Editor",
+  "name": "Caffeinated.NetworkTesting.Editor",
+  "rootNamespace": "Caffeinated.NetworkTesting.Editor",
   "references": [
-    "Amilverton.PurrNetTesting.Runtime",
-    "Amilverton.PurrNetTesting.Sample.ProjectIntegration",
+    "Caffeinated.NetworkTesting.Runtime",
     "PurrNet.Runtime"
   ],
   "includePlatforms": [

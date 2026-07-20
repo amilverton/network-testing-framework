@@ -5,8 +5,8 @@ using System.IO;
 using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
-using Amilverton.PurrNetTesting;
-using Amilverton.PurrNetTesting.Editor.ProjectConfiguration;
+using Caffeinated.NetworkTesting;
+using Caffeinated.NetworkTesting.Editor.ProjectConfiguration;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using PurrNet;
@@ -18,7 +18,7 @@ using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
-namespace Amilverton.PurrNetTesting.Editor
+namespace Caffeinated.NetworkTesting.Editor
 {
     /// <summary>
     /// Generates a test-only bootstrap scene and builds one Windows Player for all roles.
@@ -445,7 +445,7 @@ namespace Amilverton.PurrNetTesting.Editor
             string bootstrapPrefabPath)
         {
             Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
-            GameObject bootstrapRoot = new GameObject("PurrNet Network Test Harness");
+            GameObject bootstrapRoot = new GameObject("Caffeinated Network Testing");
             NetworkTestBootstrap bootstrap = bootstrapRoot.AddComponent<NetworkTestBootstrap>();
 
             GameObject networkRoot;

@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using Newtonsoft.Json;
 
-namespace Amilverton.PurrNetTesting
+namespace Caffeinated.NetworkTesting
 {
     /// <summary>
     /// Confirms that one process reached scenario-owned readiness.

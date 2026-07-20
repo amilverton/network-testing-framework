@@ -3,7 +3,7 @@ using PurrNet;
 using PurrNet.Transports;
 using UnityEngine;
 
-namespace Amilverton.PurrNetTesting
+namespace Caffeinated.NetworkTesting
 {
     /// <summary>
     /// Configures either the generated fallback root or one constrained project-authored root.

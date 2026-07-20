@@ -22,7 +22,7 @@ function Get-RelativeFileEntries {
     param([Parameter(Mandatory = $true)][string]$RootPath)
 
     $files = @(Get-ChildItem -LiteralPath $RootPath -Recurse -File -Force |
-        Where-Object { $_.Name -ne '.purrnet-network-tests-skill.json' } |
+        Where-Object { $_.Name -ne '.caffeinated-network-testing-skill.json' } |
         Sort-Object -Property FullName)
 
     $entries = [System.Collections.Generic.List[string]]::new()
@@ -74,7 +74,7 @@ function Enter-SkillInstallerLock {
 
     $lockKeyBytes = [System.Text.Encoding]::UTF8.GetBytes($lockKey)
     $lockKeyDigest = [System.Security.Cryptography.SHA256]::HashData($lockKeyBytes)
-    $mutexName = 'purrnet-network-test-skill-installer-' +
+    $mutexName = 'caffeinated-network-testing-skill-installer-' +
         [System.Convert]::ToHexString($lockKeyDigest).ToLowerInvariant()
     $mutex = [System.Threading.Mutex]::new($false, $mutexName)
     $acquired = $false
@@ -152,7 +152,7 @@ if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
 }
 
 $packageRoot = Get-FullPath -Path (Split-Path -Parent $PSScriptRoot)
-$sourcePath = Join-Path $packageRoot 'Skills~\run-purrnet-network-tests'
+$sourcePath = Join-Path $packageRoot 'Skills~\run-caffeinated-network-tests'
 $packageJsonPath = Join-Path $packageRoot 'package.json'
 if (-not (Test-Path -LiteralPath $sourcePath -PathType Container)) {
     throw "Package-owned skill source '$sourcePath' does not exist."
@@ -174,8 +174,8 @@ if ([string]::IsNullOrWhiteSpace($packageVersion)) {
 
 $sourceHash = Get-DirectoryContentHash -RootPath $sourcePath
 $skillsRoot = Join-Path $resolvedProjectPath '.agents\skills'
-$destinationPath = Join-Path $skillsRoot 'run-purrnet-network-tests'
-$ownershipPath = Join-Path $destinationPath '.purrnet-network-tests-skill.json'
+$destinationPath = Join-Path $skillsRoot 'run-caffeinated-network-tests'
+$ownershipPath = Join-Path $destinationPath '.caffeinated-network-testing-skill.json'
 [System.IO.Directory]::CreateDirectory($skillsRoot) | Out-Null
 $installerMutex = Enter-SkillInstallerLock -SkillsRoot $skillsRoot
 
@@ -188,7 +188,7 @@ try {
                 throw "Installed skill '$destinationPath' was modified after installation. No files were changed. Re-run with -StageIncoming to create a reviewable sibling copy."
             }
 
-            $incomingName = "run-purrnet-network-tests.incoming-$packageVersion"
+            $incomingName = "run-caffeinated-network-tests.incoming-$packageVersion"
             $incomingPath = Join-Path $skillsRoot $incomingName
             if (Test-Path -LiteralPath $incomingPath) {
                 throw "Incoming skill destination '$incomingPath' already exists; review or remove that exact path first."
@@ -196,7 +196,7 @@ try {
 
             Copy-SkillSource -SourcePath $sourcePath -DestinationPath $incomingPath
             $incomingHash = Get-DirectoryContentHash -RootPath $incomingPath
-            Write-JsonFile -Path (Join-Path $incomingPath '.purrnet-network-tests-skill.json') -Value ([ordered]@{
+            Write-JsonFile -Path (Join-Path $incomingPath '.caffeinated-network-testing-skill.json') -Value ([ordered]@{
                 schemaVersion = 1
                 packageName = [string]$packageJson.name
                 packageVersion = $packageVersion
@@ -217,8 +217,8 @@ try {
     }
 
     $operationId = [Guid]::NewGuid().ToString('N')
-    $temporaryPath = Join-Path $skillsRoot "run-purrnet-network-tests.installing-$operationId"
-    $backupPath = Join-Path $skillsRoot "run-purrnet-network-tests.backup-$operationId"
+    $temporaryPath = Join-Path $skillsRoot "run-caffeinated-network-tests.installing-$operationId"
+    $backupPath = Join-Path $skillsRoot "run-caffeinated-network-tests.backup-$operationId"
 
     try {
         Copy-SkillSource -SourcePath $sourcePath -DestinationPath $temporaryPath
@@ -227,7 +227,7 @@ try {
             throw "Copied skill hash '$temporaryHash' does not match canonical source hash '$sourceHash'."
         }
 
-        Write-JsonFile -Path (Join-Path $temporaryPath '.purrnet-network-tests-skill.json') -Value ([ordered]@{
+        Write-JsonFile -Path (Join-Path $temporaryPath '.caffeinated-network-testing-skill.json') -Value ([ordered]@{
             schemaVersion = 1
             packageName = [string]$packageJson.name
             packageVersion = $packageVersion

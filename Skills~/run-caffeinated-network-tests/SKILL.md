@@ -1,9 +1,9 @@
 ---
-name: run-purrnet-network-tests
-description: Inspect, author, build, run, and interpret exact three-role PurrNet network tests in a Unity project using com.amilverton.purrnet-network-tests.
+name: run-caffeinated-network-tests
+description: Inspect, author, build, run, and interpret exact three-role PurrNet network tests in a Unity project using com.caffeinated.network-testing.
 ---
 
-# Run PurrNet network tests
+# Run Caffeinated Network Testing
 
 Use the installed package's manifests, builder, and PowerShell tools as the source of truth. A pass
 requires exact contract-valid atomic JSON from `Server`, `OwnerClient`, and `ObserverClient`, followed
@@ -13,11 +13,11 @@ result is not a pass.
 ## Establish the package and envelope
 
 1. Find the Unity project root containing `Packages/manifest.json`.
-2. Require direct dependencies on both `com.amilverton.purrnet-network-tests` and
+2. Require direct dependencies on both `com.caffeinated.network-testing` and
    `dev.purrnet.purrnet`. For portable v1, PurrNet must resolve from
    `https://github.com/PurrNet/PurrNet.git?path=/Assets/PurrNet#v1.19.1`.
 3. Resolve the harness from an embedded package or
-   `Library/PackageCache/com.amilverton.purrnet-network-tests@*/`.
+   `Library/PackageCache/com.caffeinated.network-testing@*/`.
 4. Require Windows, Unity `6000.4.10f1`, Windows Build Support, StandaloneWindows64, Mono,
    PurrNet `1.19.1`, UDP loopback, PowerShell 7, and exactly one dedicated server, owner client, and
    observer client. Treat the builder as authoritative even if an Editor prerequisite status is only
@@ -25,7 +25,7 @@ result is not a pass.
 5. Read `Documentation~/project-integration.md`, `Documentation~/protocol.md`, and the project's
    optional `ProjectSettings/PurrNetNetworkTests.json` before changing or running a project scenario.
 
-Open `Tools > PurrNet Network Tests > Package Control` when a human wants the Editor surface. Refresh
+Open `Tools > Caffeinated Network Testing > Package Control` when a human wants the Editor surface. Refresh
 its status list before using its guarded manifest, skill, or interactive-suite actions.
 
 ## Install for a clean-context agent
@@ -37,18 +37,18 @@ Before handing the repository to a clean-context agent, run:
     -ProjectPath $projectRoot
 ```
 
-The installer creates `.agents/skills/run-purrnet-network-tests` and a
-`.purrnet-network-tests-skill.json` ownership record. For an installer-produced copy, require its
+The installer creates `.agents/skills/run-caffeinated-network-tests` and a
+`.caffeinated-network-testing-skill.json` ownership record. For an installer-produced copy, require its
 `packageVersion` to match the resolved package. Never overwrite a missing-ownership or hash-mismatched
 skill. Use `-StageIncoming` to create a versioned sibling for explicit review, then leave the active
 copy untouched. Start the clean agent in the project repository after installation and invoke
-`$run-purrnet-network-tests`.
+`$run-caffeinated-network-tests`.
 
 ## Inspect a project scenario
 
 Keep the scenario in a runtime-compatible asmdef referencing:
 
-- `Amilverton.PurrNetTesting.Runtime`;
+- `Caffeinated.NetworkTesting.Runtime`;
 - `PurrNet.Runtime`;
 - the game feature assemblies it exercises.
 

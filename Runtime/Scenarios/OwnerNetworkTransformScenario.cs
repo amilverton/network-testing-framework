@@ -2,7 +2,7 @@ using System.Collections;
 using PurrNet;
 using UnityEngine;
 
-namespace Amilverton.PurrNetTesting
+namespace Caffeinated.NetworkTesting
 {
     /// <summary>
     /// Proves owner-authoritative NetworkTransform convergence and non-owner spoof isolation.

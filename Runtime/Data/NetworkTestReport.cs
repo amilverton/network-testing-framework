@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using Newtonsoft.Json;
 
-namespace Amilverton.PurrNetTesting
+namespace Caffeinated.NetworkTesting
 {
     /// <summary>
     /// Contains the compact final result published by one Player process.

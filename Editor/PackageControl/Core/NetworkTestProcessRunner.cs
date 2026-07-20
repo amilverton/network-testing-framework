@@ -6,7 +6,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Text;
 
-namespace Amilverton.PurrNetTesting.Editor.PackageControl
+namespace Caffeinated.NetworkTesting.Editor.PackageControl
 {
     internal interface INetworkTestProcessRunner : IDisposable
     {

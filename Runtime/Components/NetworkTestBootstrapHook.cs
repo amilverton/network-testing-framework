@@ -2,7 +2,7 @@ using PurrNet;
 using PurrNet.Transports;
 using UnityEngine;
 
-namespace Amilverton.PurrNetTesting
+namespace Caffeinated.NetworkTesting
 {
     /// <summary>
     /// Provides one synchronous project-owned setup and cleanup boundary around a network-test role.

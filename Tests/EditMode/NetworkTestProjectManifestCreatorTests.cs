@@ -1,10 +1,10 @@
 using System;
 using System.IO;
-using Amilverton.PurrNetTesting.Editor.PackageControl;
-using Amilverton.PurrNetTesting.Editor.ProjectConfiguration;
+using Caffeinated.NetworkTesting.Editor.PackageControl;
+using Caffeinated.NetworkTesting.Editor.ProjectConfiguration;
 using NUnit.Framework;
 
-namespace Amilverton.PurrNetTesting.Tests
+namespace Caffeinated.NetworkTesting.Tests
 {
     public sealed class NetworkTestProjectManifestCreatorTests
     {

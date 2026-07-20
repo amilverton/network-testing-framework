@@ -1,6 +1,6 @@
 using Newtonsoft.Json;
 
-namespace Amilverton.PurrNetTesting
+namespace Caffeinated.NetworkTesting
 {
     /// <summary>
     /// Defines the shared endpoint and timeout for one test run.

@@ -4,7 +4,7 @@ using PurrNet;
 using PurrNet.Packing;
 using UnityEngine;
 
-namespace Amilverton.PurrNetTesting
+namespace Caffeinated.NetworkTesting
 {
     [Serializable]
     public struct OwnershipTransferTestState : IPackedAuto

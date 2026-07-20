@@ -1,6 +1,6 @@
 {
-  "name": "Amilverton.PurrNetTesting.Runtime",
-  "rootNamespace": "Amilverton.PurrNetTesting",
+  "name": "Caffeinated.NetworkTesting.Runtime",
+  "rootNamespace": "Caffeinated.NetworkTesting",
   "references": [
     "PurrNet.Runtime"
   ],

@@ -1,4 +1,4 @@
-# PurrNet Network Test Harness
+# Caffeinated Network Testing
 
 Build one test-only Unity Player, launch it as a dedicated server plus two independent clients, and
 receive machine-readable proof of PurrNet authority, sender validation, and replication. The default
@@ -34,19 +34,18 @@ dependency, so the direct PurrNet entry is mandatory.
 ```json
 {
   "dependencies": {
-    "com.amilverton.purrnet-network-tests": "https://github.com/amilverton/network-testing-framework.git",
+    "com.caffeinated.network-testing": "https://github.com/amilverton/caffeinated-network-testing.git#v0.5.0",
     "dev.purrnet.purrnet": "https://github.com/PurrNet/PurrNet.git?path=/Assets/PurrNet#v1.19.1"
   }
 }
 ```
 
-For reproducible projects, replace the harness URL's default-branch resolution with a tested release
-tag or commit when one is available. Do not change the PurrNet `v1.19.1` pin without re-establishing
-the executable compatibility proof.
+The harness is pinned to its tested `v0.5.0` release. Do not change either package pin without
+re-establishing the executable compatibility proof.
 
 ## Integrate a project scenario
 
-Open `Tools > PurrNet Network Tests > Package Control` in Unity. The window reports prerequisites and
+Open `Tools > Caffeinated Network Testing > Package Control` in Unity. The window reports prerequisites and
 the project manifest status, can create a missing `ProjectSettings/PurrNetNetworkTests.json` without
 overwriting an existing file, installs or stages the packaged AI skill, and can launch the complete
 built-in plus enabled-project interactive suite with the live viewer. Closing the window or recompiling scripts cancels an
@@ -57,7 +56,7 @@ It supplies project-owned catalog/rules wrappers and an idempotent authoring com
 hook-provisioned UDP form used when Git-package PurrNet scripts cannot be serialized directly.
 
 Project scenario code must live in a runtime-compatible assembly definition that references
-`Amilverton.PurrNetTesting.Runtime`, `PurrNet.Runtime`, and the game assemblies it exercises. Do not
+`Caffeinated.NetworkTesting.Runtime`, `PurrNet.Runtime`, and the game assemblies it exercises. Do not
 put a Player scenario in an Editor-only or Unity Test Framework-only assembly.
 
 Create a concrete scenario with one stable ID:
@@ -86,7 +85,7 @@ staging build is the default:
 
 ```powershell
 $packageRoot = (Get-ChildItem .\Library\PackageCache -Directory |
-    Where-Object Name -Like 'com.amilverton.purrnet-network-tests@*' |
+    Where-Object Name -Like 'com.caffeinated.network-testing@*' |
     Select-Object -First 1).FullName
 
 & (Join-Path $packageRoot 'Tools~\Invoke-PurrNetNetworkTests.ps1') `
@@ -136,11 +135,11 @@ clean-context agent:
     -ProjectPath $PWD
 ```
 
-This creates `.agents/skills/run-purrnet-network-tests` plus an ownership record binding the installed
+This creates `.agents/skills/run-caffeinated-network-tests` plus an ownership record binding the installed
 content hash to the harness package version. The installer refuses to overwrite an unowned or locally
 modified skill. When review is intentional, rerun with `-StageIncoming`; it writes a versioned sibling
-such as `run-purrnet-network-tests.incoming-0.4.0` and leaves the active skill untouched. Start a clean
-agent context after installation and invoke `$run-purrnet-network-tests`; the skill resolves the
+such as `run-caffeinated-network-tests.incoming-0.5.0` and leaves the active skill untouched. Start a clean
+agent context after installation and invoke `$run-caffeinated-network-tests`; the skill resolves the
 installed package tools, checks the strict inputs, runs the coordinator, and interprets retained
 evidence without reimplementing the protocol.
 

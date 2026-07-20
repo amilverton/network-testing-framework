@@ -5,7 +5,7 @@ using PurrNet;
 using PurrNet.Transports;
 using UnityEngine;
 
-namespace Amilverton.PurrNetTesting
+namespace Caffeinated.NetworkTesting
 {
     /// <summary>
     /// Isolates the one version-sensitive PurrNet configuration seam used by generated Players.
@@ -51,7 +51,7 @@ namespace Amilverton.PurrNetTesting
             }
 
             NetworkRules rules = ScriptableObject.CreateInstance<NetworkRules>();
-            rules.name = "PurrNet Network Test Rules";
+            rules.name = "Caffeinated Network Test Rules";
             rules.hideFlags = HideFlags.HideAndDontSave;
             try
             {

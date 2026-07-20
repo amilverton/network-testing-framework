@@ -1,7 +1,7 @@
 using PurrNet;
 using UnityEngine;
 
-namespace Amilverton.PurrNetTesting
+namespace Caffeinated.NetworkTesting
 {
     /// <summary>
     /// Adds NetworkTransform before PurrNet inspects a freshly instantiated generated fixture.

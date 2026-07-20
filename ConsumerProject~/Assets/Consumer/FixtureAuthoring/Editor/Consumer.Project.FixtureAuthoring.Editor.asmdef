@@ -4,7 +4,7 @@
   "references": [
     "Consumer.Project.Networking",
     "Consumer.Project.NetworkTests",
-    "Amilverton.PurrNetTesting.Runtime",
+    "Caffeinated.NetworkTesting.Runtime",
     "PurrNet.Runtime"
   ],
   "includePlatforms": [

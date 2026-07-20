@@ -1,11 +1,11 @@
 using System;
 using System.IO;
-using Amilverton.PurrNetTesting.Editor.ProjectConfiguration;
+using Caffeinated.NetworkTesting.Editor.ProjectConfiguration;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using NUnit.Framework;
 
-namespace Amilverton.PurrNetTesting.Tests
+namespace Caffeinated.NetworkTesting.Tests
 {
     public sealed class ProjectNetworkTestManifestLoaderTests
     {

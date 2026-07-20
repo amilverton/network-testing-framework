@@ -1,4 +1,4 @@
-namespace Amilverton.PurrNetTesting.Sample.ProjectIntegration
+namespace Caffeinated.NetworkTesting.Sample.ProjectIntegration
 {
     /// <summary>
     /// Project-owned serialization host for the harness's optional setup, cleanup, and root provisioning.

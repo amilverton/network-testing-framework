@@ -7,7 +7,7 @@ using PurrNet;
 using PurrNet.Transports;
 using UnityEngine;
 
-namespace Amilverton.PurrNetTesting
+namespace Caffeinated.NetworkTesting
 {
     /// <summary>
     /// Selects whether the Player creates its own minimal network root or preserves an authored root.

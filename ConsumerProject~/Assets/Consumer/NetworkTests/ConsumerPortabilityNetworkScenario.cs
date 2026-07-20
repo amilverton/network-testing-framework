@@ -1,4 +1,4 @@
-using Amilverton.PurrNetTesting;
+using Caffeinated.NetworkTesting;
 using ConsumerProject.Core;
 using PurrNet;
 using UnityEngine;

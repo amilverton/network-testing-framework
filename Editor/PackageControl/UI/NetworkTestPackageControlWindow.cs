@@ -3,12 +3,12 @@ using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine;
 
-namespace Amilverton.PurrNetTesting.Editor.PackageControl
+namespace Caffeinated.NetworkTesting.Editor.PackageControl
 {
     internal sealed class NetworkTestPackageControlWindow : EditorWindow
     {
         private const int MaximumOutputLines = 2000;
-        private const string MenuPath = "Tools/PurrNet Network Tests/Package Control";
+        private const string MenuPath = "Tools/Caffeinated Network Testing/Package Control";
 
         private readonly List<string> _outputLines = new List<string>();
 
@@ -69,7 +69,7 @@ namespace Amilverton.PurrNetTesting.Editor.PackageControl
         {
             EditorGUILayout.Space(6f);
             EditorGUILayout.LabelField(
-                "PurrNet Network Test Package Control",
+                "Caffeinated Network Testing Package Control",
                 EditorStyles.boldLabel);
             EditorGUILayout.LabelField(
                 "Inspect this project, install the packaged agent skill, and run the observable multi-process suite.",

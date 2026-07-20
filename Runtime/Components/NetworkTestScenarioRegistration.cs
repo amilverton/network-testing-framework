@@ -1,7 +1,7 @@
 using System;
 using UnityEngine;
 
-namespace Amilverton.PurrNetTesting
+namespace Caffeinated.NetworkTesting
 {
     /// <summary>
     /// Maps one stable scenario identifier to its generated network prefab.

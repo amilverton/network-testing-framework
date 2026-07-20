@@ -1,7 +1,7 @@
-using Amilverton.PurrNetTesting.Editor.PackageControl;
+using Caffeinated.NetworkTesting.Editor.PackageControl;
 using NUnit.Framework;
 
-namespace Amilverton.PurrNetTesting.Tests
+namespace Caffeinated.NetworkTesting.Tests
 {
     public sealed class WindowsCommandLineTests
     {

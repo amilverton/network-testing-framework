@@ -7,7 +7,7 @@ sealed PurrNet `NetworkManager` and `UDPTransport` immediately before activation
 
 After importing the sample, run:
 
-`Tools > PurrNet Network Tests > Samples > Create Hook-Provisioned Root`
+`Tools > Caffeinated Network Testing > Samples > Create Hook-Provisioned Root`
 
 The command creates `Assets/NetworkTests/Generated/ProjectNetworkTestBootstrap.prefab` plus its
 catalog and rules assets without overwriting valid existing assets. Put that prefab's path in

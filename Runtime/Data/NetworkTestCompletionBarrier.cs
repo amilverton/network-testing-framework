@@ -1,4 +1,4 @@
-namespace Amilverton.PurrNetTesting
+namespace Caffeinated.NetworkTesting
 {
     /// <summary>
     /// Announces that one role has completed its assertions and is ready for coordinated shutdown.

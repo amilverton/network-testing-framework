@@ -5,7 +5,7 @@ using System.IO;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
-namespace Amilverton.PurrNetTesting.Editor.ProjectConfiguration
+namespace Caffeinated.NetworkTesting.Editor.ProjectConfiguration
 {
     internal sealed class ProjectNetworkTestManifestValidator
     {

@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using PurrNet;
 using UnityEngine;
 
-namespace Amilverton.PurrNetTesting
+namespace Caffeinated.NetworkTesting
 {
     /// <summary>
     /// Provides generated scenario prefabs to PurrNet without a project-owned ScriptableObject asset.

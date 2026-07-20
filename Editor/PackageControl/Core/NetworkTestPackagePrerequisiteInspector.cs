@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using Amilverton.PurrNetTesting.Editor.ProjectConfiguration;
+using Caffeinated.NetworkTesting.Editor.ProjectConfiguration;
 
-namespace Amilverton.PurrNetTesting.Editor.PackageControl
+namespace Caffeinated.NetworkTesting.Editor.PackageControl
 {
     internal sealed class NetworkTestPackagePrerequisiteInspector
     {
@@ -148,7 +148,7 @@ namespace Amilverton.PurrNetTesting.Editor.PackageControl
             string runnerPath = GetPackagePath("Tools~", "Invoke-PurrNetNetworkTestSuiteInteractive.ps1");
             string skillPath = GetPackagePath(
                 "Skills~",
-                "run-purrnet-network-tests",
+                "run-caffeinated-network-tests",
                 "SKILL.md");
             AddRequiredStatus(
                 statuses,
@@ -220,7 +220,7 @@ namespace Amilverton.PurrNetTesting.Editor.PackageControl
                 _environment.ProjectPath,
                 ".agents",
                 "skills",
-                "run-purrnet-network-tests");
+                "run-caffeinated-network-tests");
             if (!Directory.Exists(installedSkillPath))
             {
                 statuses.Add(new NetworkTestSupportStatus(
@@ -232,7 +232,7 @@ namespace Amilverton.PurrNetTesting.Editor.PackageControl
 
             string ownershipPath = Path.Combine(
                 installedSkillPath,
-                ".purrnet-network-tests-skill.json");
+                ".caffeinated-network-testing-skill.json");
             if (!File.Exists(ownershipPath))
             {
                 statuses.Add(new NetworkTestSupportStatus(

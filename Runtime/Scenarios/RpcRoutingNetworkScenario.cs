@@ -1,7 +1,7 @@
 using PurrNet;
 using UnityEngine;
 
-namespace Amilverton.PurrNetTesting
+namespace Caffeinated.NetworkTesting
 {
     /// <summary>
     /// Proves exact TargetRpc and ObserversRpc audience inclusion and exclusion.

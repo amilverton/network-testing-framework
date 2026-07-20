@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 
-namespace Amilverton.PurrNetTesting.Editor.ProjectConfiguration
+namespace Caffeinated.NetworkTesting.Editor.ProjectConfiguration
 {
     /// <summary>
     /// Validated project-owned network-test configuration.

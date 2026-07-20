@@ -1,6 +1,6 @@
 using PurrNet;
 
-namespace Amilverton.PurrNetTesting
+namespace Caffeinated.NetworkTesting
 {
     /// <summary>
     /// Keeps the coordinator's process roles bound to server-observed PurrNet senders.

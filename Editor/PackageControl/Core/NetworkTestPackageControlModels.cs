@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 
-namespace Amilverton.PurrNetTesting.Editor.PackageControl
+namespace Caffeinated.NetworkTesting.Editor.PackageControl
 {
     internal enum NetworkTestSupportLevel : byte
     {

@@ -1,6 +1,6 @@
 {
   "dependencies": {
-    "com.amilverton.purrnet-network-tests": {
+    "com.caffeinated.network-testing": {
       "version": "file:../..",
       "depth": 0,
       "source": "local",

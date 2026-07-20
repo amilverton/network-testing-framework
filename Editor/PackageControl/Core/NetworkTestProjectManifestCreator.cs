@@ -1,9 +1,9 @@
 using System;
 using System.IO;
 using System.Text;
-using Amilverton.PurrNetTesting.Editor.ProjectConfiguration;
+using Caffeinated.NetworkTesting.Editor.ProjectConfiguration;
 
-namespace Amilverton.PurrNetTesting.Editor.PackageControl
+namespace Caffeinated.NetworkTesting.Editor.PackageControl
 {
     internal sealed class NetworkTestProjectManifestCreator
     {

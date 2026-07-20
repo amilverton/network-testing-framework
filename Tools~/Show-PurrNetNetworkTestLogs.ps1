@@ -528,7 +528,7 @@ $initialRunLabel = if ($null -eq $viewerState.RunPath) {
 else {
     [System.IO.Path]::GetFileName($viewerState.RunPath)
 }
-$window.Title = "PurrNet Network Test Viewer - $initialRunLabel"
+$window.Title = "Caffeinated Network Testing Viewer - $initialRunLabel"
 $window.Width = 1500
 $window.Height = 850
 $window.MinWidth = 900
@@ -634,7 +634,7 @@ $refreshAction = {
     if ($null -eq $viewerState.RunPath) {
         $overallText.Text = 'Overall: WAITING FOR FIRST RUN'
         $overallText.Foreground = [System.Windows.Media.Brushes]::DimGray
-        $window.Title = 'PurrNet Network Test Viewer - waiting for first run'
+        $window.Title = 'Caffeinated Network Testing Viewer - waiting for first run'
         return
     }
 
@@ -711,7 +711,7 @@ $refreshAction = {
         $overallText.Foreground = [System.Windows.Media.BrushConverter]::new().ConvertFromString('#2563EB')
     }
 
-    $window.Title = "PurrNet Network Test Viewer - $([System.IO.Path]::GetFileName($viewerState.RunPath)) - $($overallText.Text.Replace('Overall: ', ''))"
+    $window.Title = "Caffeinated Network Testing Viewer - $([System.IO.Path]::GetFileName($viewerState.RunPath)) - $($overallText.Text.Replace('Overall: ', ''))"
 }
 
 $timer = [System.Windows.Threading.DispatcherTimer]::new()

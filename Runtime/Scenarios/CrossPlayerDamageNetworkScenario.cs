@@ -2,7 +2,7 @@ using System;
 using PurrNet;
 using PurrNet.Packing;
 
-namespace Amilverton.PurrNetTesting
+namespace Caffeinated.NetworkTesting
 {
     [Serializable]
     public struct CrossPlayerDamageTestState : IPackedAuto

@@ -1,6 +1,6 @@
 using PurrNet;
 
-namespace Amilverton.PurrNetTesting.Sample.ProjectIntegration
+namespace Caffeinated.NetworkTesting.Sample.ProjectIntegration
 {
     /// <summary>
     /// Gives the project's authored PurrNet rules a resolvable Unity script identity.

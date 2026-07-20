@@ -1,3 +1,3 @@
 using System.Runtime.CompilerServices;
 
-[assembly: InternalsVisibleTo("Amilverton.PurrNetTesting.Tests.EditMode")]
+[assembly: InternalsVisibleTo("Caffeinated.NetworkTesting.Tests.EditMode")]

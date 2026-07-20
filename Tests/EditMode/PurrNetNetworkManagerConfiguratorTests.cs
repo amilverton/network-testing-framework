@@ -4,7 +4,7 @@ using NUnit.Framework;
 using PurrNet;
 using UnityEngine;
 
-namespace Amilverton.PurrNetTesting.Tests
+namespace Caffeinated.NetworkTesting.Tests
 {
     public sealed class PurrNetNetworkManagerConfiguratorTests
     {

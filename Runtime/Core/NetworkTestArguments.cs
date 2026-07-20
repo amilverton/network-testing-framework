@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace Amilverton.PurrNetTesting
+namespace Caffeinated.NetworkTesting
 {
     /// <summary>
     /// Holds the validated command-line arguments for one Player role.

@@ -1,7 +1,7 @@
 using PurrNet;
 using UnityEngine;
 
-namespace Amilverton.PurrNetTesting
+namespace Caffeinated.NetworkTesting
 {
     /// <summary>
     /// Base component for a code-driven network fixture generated into the test Player.

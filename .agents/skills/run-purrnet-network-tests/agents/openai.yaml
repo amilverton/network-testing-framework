@@ -1,4 +1,0 @@
-interface:
-  display_name: "PurrNet Network Tests"
-  short_description: "Build and run standalone PurrNet scenarios"
-  default_prompt: "Use $run-purrnet-network-tests to build and run a three-process PurrNet integration scenario."

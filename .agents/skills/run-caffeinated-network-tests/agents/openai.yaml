@@ -1,0 +1,4 @@
+interface:
+  display_name: "Caffeinated Network Testing"
+  short_description: "Build and run standalone PurrNet scenarios"
+  default_prompt: "Use $run-caffeinated-network-tests to build and run a three-process PurrNet integration scenario."

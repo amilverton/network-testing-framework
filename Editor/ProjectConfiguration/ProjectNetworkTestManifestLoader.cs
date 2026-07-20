@@ -1,7 +1,7 @@
 using System;
 using System.IO;
 
-namespace Amilverton.PurrNetTesting.Editor.ProjectConfiguration
+namespace Caffeinated.NetworkTesting.Editor.ProjectConfiguration
 {
     /// <summary>
     /// Reads and validates the optional project-owned network-test manifest.

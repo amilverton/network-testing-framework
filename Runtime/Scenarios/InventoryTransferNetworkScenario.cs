@@ -3,7 +3,7 @@ using PurrNet;
 using PurrNet.Packing;
 using UnityEngine;
 
-namespace Amilverton.PurrNetTesting
+namespace Caffeinated.NetworkTesting
 {
     /// <summary>
     /// Replicated inventory facts used by the built-in authority scenario.

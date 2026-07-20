@@ -200,7 +200,7 @@ function Invoke-NetworkTestPlayerBuild {
         '-quit',
         '-projectPath', $BuildProjectPath,
         '-buildTarget', 'StandaloneWindows64',
-        '-executeMethod', 'Amilverton.PurrNetTesting.Editor.NetworkTestPlayerBuilder.BuildFromCommandLine',
+        '-executeMethod', 'Caffeinated.NetworkTesting.Editor.NetworkTestPlayerBuilder.BuildFromCommandLine',
         '-networkTestBuildPath', $ResolvedPlayerPath,
         '-logFile', $BuildLogPath
     )

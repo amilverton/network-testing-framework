@@ -1,10 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using Amilverton.PurrNetTesting.Editor.PackageControl;
+using Caffeinated.NetworkTesting.Editor.PackageControl;
 using NUnit.Framework;
 
-namespace Amilverton.PurrNetTesting.Tests
+namespace Caffeinated.NetworkTesting.Tests
 {
     public sealed class NetworkTestPackageControlServiceTests
     {
@@ -30,8 +30,8 @@ namespace Amilverton.PurrNetTesting.Tests
                 Path.Combine(packageRoot, "Tools~", "Invoke-PurrNetNetworkTestSuiteInteractive.ps1"),
                 "# runner");
             WriteFile(
-                Path.Combine(packageRoot, "Skills~", "run-purrnet-network-tests", "SKILL.md"),
-                "---\nname: run-purrnet-network-tests\n---");
+                Path.Combine(packageRoot, "Skills~", "run-caffeinated-network-tests", "SKILL.md"),
+                "---\nname: run-caffeinated-network-tests\n---");
 
             _environment = new FakePackageEnvironment
             {

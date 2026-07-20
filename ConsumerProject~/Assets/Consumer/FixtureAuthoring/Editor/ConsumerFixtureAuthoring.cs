@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using Amilverton.PurrNetTesting;
+using Caffeinated.NetworkTesting;
 using ConsumerProject.Networking;
 using ConsumerProject.NetworkTests;
 using PurrNet;

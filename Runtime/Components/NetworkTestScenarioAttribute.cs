@@ -1,6 +1,6 @@
 using System;
 
-namespace Amilverton.PurrNetTesting
+namespace Caffeinated.NetworkTesting
 {
     [Flags]
     public enum NetworkTestPrefabFeatures

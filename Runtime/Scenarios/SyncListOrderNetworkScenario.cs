@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using PurrNet;
 
-namespace Amilverton.PurrNetTesting
+namespace Caffeinated.NetworkTesting
 {
     /// <summary>
     /// Proves ordered SyncList delta callbacks and identical final collection state.

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.5.0 - 2026-07-20
+
+- Rename the package to `com.caffeinated.network-testing` and the product to
+  **Caffeinated Network Testing**.
+- Standardize public namespaces and assemblies as `Caffeinated.NetworkTesting` across runtime,
+  Editor, tests, samples, and consumer fixtures.
+- Rename the bundled agent skill to `run-caffeinated-network-tests` and its ownership record to
+  `.caffeinated-network-testing-skill.json`.
+
 ## 0.4.0 - 2026-07-20
 
 - Add a strict project manifest with exact per-role contracts, named suites, code or authored-prefab
